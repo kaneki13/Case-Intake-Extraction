@@ -140,7 +140,7 @@ public final class CaseFinder {
         }
         boolean located = ev != null && ev.isTextual()
                 && QuoteLocator.locate(text, ev.asText(), OptionalInt.empty()).isPresent();
-        return new DocumentHints(convention, located);
+        return new DocumentHints(convention, located, false);
     }
 
     private static String requiredString(JsonNode o, String key, String path) {

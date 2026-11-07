@@ -4,11 +4,12 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * The two model stages: their {@code --stage} value on the command line and the key their exchanges are recorded
- * under in {@code fixtures/<id>/} (LLD 1.1, 10). Case finding runs once per document; extraction once per case,
- * keyed by the case index.
+ * The model stages: their {@code --stage} value on the command line and the key their exchanges are recorded
+ * under in {@code fixtures/<id>/} (LLD 1.1, 10). Transcription runs once, only for a PDF-only document; case finding
+ * once per document; extraction once per case, keyed by the case index.
  */
 enum Stage {
+    TRANSCRIBE("transcribe", "transcribe", false),
     CASES("cases", "cases", false),
     EXTRACT("extract", "extract-case-", true);
 

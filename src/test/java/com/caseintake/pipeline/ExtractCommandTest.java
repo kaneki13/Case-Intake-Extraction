@@ -3,6 +3,9 @@ package com.caseintake.pipeline;
 import static com.caseintake.pipeline.DocumentPipelineTest.EMPTY_FIELDS;
 import static com.caseintake.pipeline.DocumentPipelineTest.NO_CASE;
 import static com.caseintake.pipeline.DocumentPipelineTest.ONE_CASE;
+import static com.caseintake.pipeline.DocumentPipelineTest.PDF_BYTES;
+import static com.caseintake.pipeline.DocumentPipelineTest.TRANSCRIBED;
+import static com.caseintake.pipeline.DocumentPipelineTest.TRANSCRIPT;
 import static com.caseintake.pipeline.DocumentPipelineTest.TEXT;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -42,6 +45,7 @@ class ExtractCommandTest {
     Path docs;
     Path fixtures;
     Path out;
+    Path derived;
     final ByteArrayOutputStream errBytes = new ByteArrayOutputStream();
     final PrintStream err = new PrintStream(errBytes, true, StandardCharsets.UTF_8);
 
@@ -82,17 +86,18 @@ class ExtractCommandTest {
         docs = Files.createDirectories(root.resolve("docs"));
         fixtures = root.resolve("fixtures");
         out = root.resolve("out");
+        derived = root.resolve("derived");
         for (String id : List.of("E1", "E2", "E3")) {
             Files.writeString(docs.resolve(id + ".txt"), TEXT);
         }
     }
 
     AppProperties app() {
-        return new AppProperties(CatalogFixtures.COMMITTED, List.of(docs), fixtures, out);
+        return new AppProperties(CatalogFixtures.COMMITTED, List.of(docs), fixtures, out, derived);
     }
 
     static LlmProperties llm() {
-        return new LlmProperties("fake", new LlmProperties.Models("case-model", "extract-model"), null, null, null);
+        return new LlmProperties("fake", new LlmProperties.Models("case-model", "extract-model", "transcribe-model"), null, null, null);
     }
 
     /** The command with the given client, whose credential secret is set to {@code key}. */
@@ -227,7 +232,7 @@ class ExtractCommandTest {
     @Test
     void blankModelIdExitsTwo() {
         FakeClient client = new FakeClient(ONE_CASE, EMPTY_FIELDS);
-        LlmProperties blank = new LlmProperties("fake", new LlmProperties.Models("case-model", " "), null, null, null);
+        LlmProperties blank = new LlmProperties("fake", new LlmProperties.Models("case-model", " ", "transcribe-model"), null, null, null);
 
         int code = new ExtractCommand(app(), blank, () -> Optional.of(client), CLOCK, err)
                 .run(Set.of(), Optional.empty(), false);
@@ -241,6 +246,46 @@ class ExtractCommandTest {
         assertThat(new ExtractCommand(app(), none, () -> Optional.of(client), CLOCK, err)
                 .run(Set.of(), Optional.empty(), false)).isEqualTo(2);
         assertThat(stderr()).contains("llm.models.case-finding is not set");
+
+        LlmProperties noTranscription = new LlmProperties("fake",
+                new LlmProperties.Models("case-model", "extract-model", ""), null, null, null);
+        assertThat(new ExtractCommand(app(), noTranscription, () -> Optional.of(client), CLOCK, err)
+                .run(Set.of(), Optional.empty(), false)).isEqualTo(2);
+        assertThat(stderr()).contains("Configuration error: llm.models.transcription is not set");
+        assertThat(client.requests).isEmpty();
+    }
+
+    @Test
+    void pdfOnlyDocumentIsTranscribedAndItsTranscriptWrittenToDerived() throws Exception {
+        Files.write(docs.resolve("P1.pdf"), PDF_BYTES);
+        FakeClient client = new FakeClient(TRANSCRIBED, NO_CASE);
+
+        int code = command(KEY, client).run(Set.of("P1"), Optional.empty(), false);
+
+        assertThat(code).isZero();
+        assertThat(client.requests).extracting(LlmRequest::model).containsExactly("transcribe-model", "case-model");
+        assertThat(fixtures.resolve("P1/transcribe.attempt-1.json")).exists();
+        assertThat(Files.readString(derived.resolve("P1.txt"))).isEqualTo(TRANSCRIPT);
+        assertThat(OutputWriter.read(out.resolve("P1.json")).flags())
+                .containsExactly("no_adverse_event", "transcribed_from_image");
+    }
+
+    @Test
+    void stageTranscribeAlsoReRecordsThatDocumentsLaterStages() throws Exception {
+        Files.write(docs.resolve("P1.pdf"), PDF_BYTES);
+        command(KEY, new FakeClient(NO_CASE, TRANSCRIBED, NO_CASE)).run(Set.of("E1", "P1"), Optional.empty(), false);
+        String changed = "Scanned again\n" + DocumentPipelineTest.TEXT;
+        FakeClient again = new FakeClient(DocumentPipelineTest.transcription(changed, 0), ONE_CASE, EMPTY_FIELDS);
+
+        int code = command(KEY, again).run(Set.of("E1", "P1"), Optional.of("transcribe"), false);
+
+        assertThat(code).isZero();
+        assertThat(again.requests).extracting(LlmRequest::model)
+                .containsExactly("transcribe-model", "case-model", "extract-model");
+        assertThat(fixtures.resolve("E1/cases.attempt-2.json")).doesNotExist();
+        assertThat(fixtures.resolve("P1/transcribe.attempt-2.json")).exists();
+        assertThat(fixtures.resolve("P1/cases.attempt-2.json")).exists();
+        assertThat(Files.readString(derived.resolve("P1.txt"))).isEqualTo(changed);
     }
 
     @Test

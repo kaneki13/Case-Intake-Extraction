@@ -7,7 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.springframework.boot.ApplicationArguments;
 
-/** Reads the command options of LLD 1.1 ({@code --only}, {@code --stage}, {@code --out}). */
+/** Reads the command options of LLD 1.1 ({@code --only}, {@code --stage}, {@code --out}, {@code --derived}). */
 final class CommandOptions {
     private CommandOptions() {}
 

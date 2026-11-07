@@ -22,17 +22,20 @@ import org.junit.jupiter.api.io.TempDir;
 /** Replaying the committed fixtures reproduces the committed out/ exactly (LLD §14). Offline. */
 class ReplayGoldenTest {
     static final Path COMMITTED_OUT = Path.of("out");
+    static final Path COMMITTED_DERIVED = Path.of("derived");
     static final ObjectMapper JSON = new ObjectMapper();
 
     @TempDir Path tmp;
 
     /**
-     * Replays every committed document with the given catalog into outDir; fails on any failed document. The
+     * Replays every committed document with the given catalog into outDir, writing transcripts to derivedDir; fails
+     * on any failed document. The
      * command's progress log (written to System.err at construction) is captured and shown only on failure.
      */
-    static RunReport replay(Path catalog, Path outDir) {
+    static RunReport replay(Path catalog, Path outDir, Path derivedDir) {
         var log = new ByteArrayOutputStream();
-        var app = new AppProperties(catalog, List.of(Path.of("documents")), Path.of("fixtures"), COMMITTED_OUT);
+        var app = new AppProperties(catalog, List.of(Path.of("documents")), Path.of("fixtures"), COMMITTED_OUT,
+                COMMITTED_DERIVED);
         PrintStream original = System.err;
         ReplayCommand command;
         System.setErr(new PrintStream(log, true, StandardCharsets.UTF_8));
@@ -41,10 +44,20 @@ class ReplayGoldenTest {
         } finally {
             System.setErr(original);
         }
-        RunReport report = command.run(catalog, outDir, Set.of());
+        RunReport report = command.run(catalog, outDir, derivedDir, Set.of());
         assertThat(report.failed()).as("documents that failed to replay; log:%n%s",
                 log.toString(StandardCharsets.UTF_8)).isEmpty();
         return report;
+    }
+
+    /** File names in dir, sorted; an absent dir has none. */
+    static List<String> files(Path dir) throws IOException {
+        if (!Files.isDirectory(dir)) {
+            return List.of();
+        }
+        try (Stream<Path> files = Files.list(dir)) {
+            return files.map(p -> p.getFileName().toString()).sorted().toList();
+        }
     }
 
     static List<String> jsonFiles(Path dir) throws IOException {
@@ -56,8 +69,9 @@ class ReplayGoldenTest {
     @Test
     void replayReproducesCommittedOut() throws Exception {
         Path replayed = tmp.resolve("out");
+        Path replayedDerived = tmp.resolve("derived");
 
-        replay(CatalogFixtures.COMMITTED, replayed);
+        replay(CatalogFixtures.COMMITTED, replayed, replayedDerived);
 
         List<String> committed = jsonFiles(COMMITTED_OUT);
         assertThat(committed).hasSize(8);
@@ -66,6 +80,11 @@ class ReplayGoldenTest {
             assertThat(JSON.readTree(replayed.resolve(name).toFile()))
                     .as(name)
                     .isEqualTo(JSON.readTree(COMMITTED_OUT.resolve(name).toFile()));
+        }
+        assertThat(files(replayedDerived)).containsExactlyElementsOf(files(COMMITTED_DERIVED));
+        for (String name : files(COMMITTED_DERIVED)) {
+            assertThat(Files.readAllBytes(replayedDerived.resolve(name))).as(name)
+                    .isEqualTo(Files.readAllBytes(COMMITTED_DERIVED.resolve(name)));
         }
     }
 }

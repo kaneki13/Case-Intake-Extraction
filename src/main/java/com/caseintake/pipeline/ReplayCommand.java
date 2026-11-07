@@ -15,8 +15,8 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.stereotype.Component;
 
 /**
- * Replay mode: rebuilds outputs from the recorded fixtures, the documents and the given catalog. It never creates
- * or needs an LlmClient, a model id or an API key.
+ * Replay mode: rebuilds outputs, and the transcripts of image-only documents, from the recorded fixtures, the
+ * documents and the given catalog. It never creates or needs an LlmClient, a model id or an API key.
  */
 @Component
 public class ReplayCommand {
@@ -39,7 +39,8 @@ public class ReplayCommand {
         RunReport report;
         try {
             Path outDir = CommandOptions.single(args, "out").map(Path::of).orElse(app.out());
-            report = run(app.catalog(), outDir, CommandOptions.only(args));
+            Path derivedDir = CommandOptions.single(args, "derived").map(Path::of).orElse(app.derived());
+            report = run(app.catalog(), outDir, derivedDir, CommandOptions.only(args));
         } catch (RuntimeException e) {
             // per-document failures are caught inside the run, so anything here is an option, the catalog or the
             // document dirs
@@ -50,11 +51,15 @@ public class ReplayCommand {
         return report.exitCode();
     }
 
-    /** Throws if the catalog or the document directories cannot be read; per-document failures are reported. */
-    public RunReport run(Path catalogPath, Path outDir, Set<String> only) {
+    /**
+     * Writes outputs to outDir and transcripts to derivedDir. Throws if the catalog or the document directories cannot
+     * be read; per-document failures are reported.
+     */
+    public RunReport run(Path catalogPath, Path outDir, Path derivedDir, Set<String> only) {
         Catalog catalog = CatalogLoader.load(catalogPath);
         List<SourceDocument> docs = DocumentSource.list(app.documents());
-        DocumentPipeline pipeline = new DocumentPipeline(new PromptBuilder(), null, null, err::println);
+        DocumentPipeline pipeline = new DocumentPipeline(new PromptBuilder(), null, null, null,
+                new TranscriptStore(derivedDir), err::println);
         return pipeline.run(docs, only, catalog, new FixtureExchangeSource(new FixtureStore(app.fixtures())), outDir);
     }
 }

@@ -42,7 +42,7 @@ class FieldAssemblerTest {
 
     private static final SourceText TEXT = SourceText.of("t",
             "Patient  MK, aged 54, female. Dose 250 mcg daily. Onset on 15/05/2026.");
-    private static final DocumentHints NO_HINT = new DocumentHints(DateConvention.UNKNOWN, false);
+    private static final DocumentHints NO_HINT = new DocumentHints(DateConvention.UNKNOWN, false, false);
 
     /** JSON written with single quotes for readability. */
     private static JsonNode json(String singleQuoted) {
@@ -278,7 +278,7 @@ class FieldAssemblerTest {
                 + "'quotes':['Onset on 03/04/2026']}}";
         var noHint = FieldAssembler.assemble(CATALOG, json(fields), text, OptionalInt.empty(), NO_HINT);
         var hint = FieldAssembler.assemble(CATALOG, json(fields), text, OptionalInt.empty(),
-                new DocumentHints(DateConvention.DAY_FIRST, true));
+                new DocumentHints(DateConvention.DAY_FIRST, true, false));
         assertThat(noHint.get("onset").confidence()).isEqualTo("low");
         assertThat(noHint.get("onset").note()).isEqualTo("Confidence lowered: AMBIGUOUS_NUMERIC_DATE.");
         assertThat(hint.get("onset").confidence()).isEqualTo("medium");

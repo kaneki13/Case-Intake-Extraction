@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Rebuilds out/ from the recorded fixtures, the documents and a catalog. No API key, no network.
 # Usage: ./replay.sh [catalog]   (default catalog/field_catalog.json)
-# Optional: REPLAY_OUT=<dir> writes the outputs there instead of out/ (used by tests).
+# Optional: REPLAY_OUT=<dir> writes the outputs there instead of out/, and REPLAY_DERIVED=<dir> writes the
+# transcripts of image-only documents there instead of derived/ (both used by tests).
 set -euo pipefail
 
 catalog="${1:-catalog/field_catalog.json}"
@@ -16,6 +17,11 @@ if [[ -n "${REPLAY_OUT:-}" ]]; then
   out_dir="$REPLAY_OUT"
   [[ "$out_dir" == /* ]] || out_dir="$PWD/$out_dir"
   out_args=(--out="$out_dir")
+fi
+if [[ -n "${REPLAY_DERIVED:-}" ]]; then
+  derived_dir="$REPLAY_DERIVED"
+  [[ "$derived_dir" == /* ]] || derived_dir="$PWD/$derived_dir"
+  out_args+=(--derived="$derived_dir")
 fi
 
 cd "$(dirname "$0")"

@@ -180,7 +180,7 @@ class ResponseSchemaFactoryTest {
         SourceText text = SourceText.of("t", "A 40-year-old man developed a rash after drug X.");
         CaseCandidate target = new CaseCandidate("patient 1", new TextSpan(0, 16), Map.of());
         Prompt prompt = new PromptBuilder().extractionPrompt(mutated, text, target, List.of(),
-                new DocumentHints(DateConvention.UNKNOWN, false), DocumentFence.newMarker(), Optional.empty());
+                new DocumentHints(DateConvention.UNKNOWN, false, false), DocumentFence.newMarker(), Optional.empty());
         assertThat(prompt.user()).contains("zz_test_field", "Test field label", "zz_yes: Yes indeed",
                 "zz_no: No indeed", "Guidance for the test field.");
     }
@@ -208,6 +208,21 @@ class ResponseSchemaFactoryTest {
 
         ((ObjectNode) ok.get("date_convention")).put("value", "sideways");
         assertThat(compiled.validate(ok)).isNotEmpty();
+    }
+
+    @Test
+    void transcriptionSchemaRequiresTranscriptAndIllegibleCount() {
+        JsonNode schema = ResponseSchemaFactory.transcriptionSchema();
+        assertThat(texts(schema.get("required"))).containsExactly("transcript", "illegible_count");
+        assertThat(schema.at("/properties/transcript/type").asText()).isEqualTo("string");
+        assertThat(schema.at("/properties/illegible_count/type").asText()).isEqualTo("integer");
+
+        JsonSchema compiled = compile(schema);
+        ObjectNode ok = M.createObjectNode().put("transcript", "line 1\n[illegible]").put("illegible_count", 1);
+        assertThat(compiled.validate(ok)).isEmpty();
+        assertThat(compiled.validate(M.createObjectNode().put("transcript", "t"))).isNotEmpty();
+        assertThat(compiled.validate(M.createObjectNode().put("transcript", "t").put("illegible_count", "one")))
+                .isNotEmpty();
     }
 
     @Test

@@ -6,6 +6,7 @@ app:
   documents: [documents]          # stretch phase: [documents, documents/stretch]
   fixtures: fixtures
   out: out
+  derived: derived                # transcripts of image-only PDFs (written by extract, rebuilt by replay)
 llm:
   provider: gemini                # selects the LlmClient bean
   models:
@@ -13,6 +14,7 @@ llm:
     # (3.8 Flash: high demand, free daily quota spent on 503 retries; 3.7 Flash bills to the same 3.8 quota)
     case-finding: ${LLM_MODEL_CASES:gemini-3.5-flash-lite}
     extraction: ${LLM_MODEL_EXTRACT:gemini-3.6-flash}
+    transcription: ${LLM_MODEL_TRANSCRIBE:gemini-3.6-flash}   # vision model for image-only PDFs
   rate-limit:
     requests-per-minute: 8
   retry:

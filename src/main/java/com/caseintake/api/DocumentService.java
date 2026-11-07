@@ -6,9 +6,11 @@ import com.caseintake.output.DocumentId;
 import com.caseintake.output.FieldStatus;
 import com.caseintake.pipeline.DocumentSource;
 import com.caseintake.pipeline.SourceDocument;
+import com.caseintake.pipeline.TranscriptStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,11 +18,15 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-/** Serves the committed out/ files and the source text. Reads files on every request; nothing is cached. */
+/**
+ * Serves the committed out/ files and the source text: the document's {@code .txt}, else its transcript in the
+ * derived dir, else none. Reads files on every request; nothing is cached.
+ */
 @Service
 public class DocumentService {
     private static final String DUPLICATES = "duplicates";
@@ -92,16 +98,24 @@ public class DocumentService {
     }
 
     private String readText(String id) {
+        Optional<Path> txt;
         try {
-            return DocumentSource.list(props.documents(), m -> { }).stream()
+            txt = DocumentSource.list(props.documents(), m -> { }).stream()
                     .filter(d -> d.id().equals(id))
                     .findFirst()
-                    .flatMap(SourceDocument::txt)
-                    .map(this::readString)
-                    .orElse(null);
+                    .flatMap(SourceDocument::txt);
         } catch (IllegalStateException e) {
             throw new DocumentApiException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Source documents unavailable while reading " + id, e);
+        }
+        if (txt.isPresent()) {
+            return readString(txt.get());
+        }
+        try {
+            return new TranscriptStore(props.derived()).read(id).orElse(null);
+        } catch (UncheckedIOException e) {
+            throw new DocumentApiException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Transcript for " + id + " cannot be read", e);
         }
     }
 

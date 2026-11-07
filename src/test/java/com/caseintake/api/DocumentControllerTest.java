@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.caseintake.catalog.Catalog;
 import com.caseintake.catalog.CatalogLoader;
 import com.caseintake.config.AppProperties;
+import com.caseintake.pipeline.TranscriptStore;
 import com.caseintake.support.CatalogFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -25,6 +26,7 @@ class DocumentControllerTest {
     @TempDir Path tmp;
     private Path out;
     private Path docs;
+    private Path derived;
     private Catalog catalog;
     private MockMvc mvc;
 
@@ -33,7 +35,9 @@ class DocumentControllerTest {
         out = Files.createDirectories(tmp.resolve("out"));
         docs = Files.createDirectories(tmp.resolve("documents"));
         catalog = CatalogLoader.load(CatalogFixtures.COMMITTED);
-        AppProperties props = new AppProperties(CatalogFixtures.COMMITTED, List.of(docs), tmp.resolve("fixtures"), out);
+        derived = tmp.resolve("derived");
+        AppProperties props = new AppProperties(CatalogFixtures.COMMITTED, List.of(docs), tmp.resolve("fixtures"), out,
+                derived);
         DocumentService service = new DocumentService(props, catalog, new ObjectMapper());
         mvc = MockMvcBuilders.standaloneSetup(new DocumentController(service), new CatalogController(catalog))
                 .setControllerAdvice(new ApiExceptionHandler())
@@ -118,6 +122,31 @@ class DocumentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.text").doesNotExist())
                 .andExpect(jsonPath("$.title").value("(no text layer)"));
+    }
+
+    @Test
+    void detailServesDerivedTextWhenNoTxt() throws Exception {
+        writeOut("S3", doc("S3", "[\"transcribed_from_image\"]"));
+        Files.writeString(docs.resolve("S3.pdf"), "%PDF");
+        String transcript = "Subject: Scanned\n[illegible] ünï\n";
+        new TranscriptStore(derived).write("S3", transcript);
+
+        mvc.perform(get("/api/documents/S3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.text").value(transcript))
+                .andExpect(jsonPath("$.title").value("Scanned"));
+        mvc.perform(get("/api/documents"))
+                .andExpect(jsonPath("$[0].title").value("Scanned"));
+    }
+
+    @Test
+    void txtWinsOverDerivedText() throws Exception {
+        writeOut("A1", doc("A1", "[]"));
+        Files.writeString(docs.resolve("A1.txt"), "from txt");
+        new TranscriptStore(derived).write("A1", "from transcript");
+
+        mvc.perform(get("/api/documents/A1"))
+                .andExpect(jsonPath("$.text").value("from txt"));
     }
 
     @Test

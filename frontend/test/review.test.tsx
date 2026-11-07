@@ -200,6 +200,63 @@ describe('bulk review', () => {
     expect(within(row()).getByText(`${String(d01Fields()[id]?.value)} kept`)).toBeInTheDocument()
   })
 
+  it('singleAndBulkActionsExcludeEachOther', async () => {
+    const [first] = displayOrder() as [string]
+    const seen = capturePatches()
+    // Hold each PATCH until released; the stateful handler then answers it.
+    let release = () => {}
+    const hold = () => new Promise<void>((resolve) => { release = resolve })
+    server.use(http.patch('*/api/documents/:id/cases/:caseIndex/fields/:fieldId', async () => { await hold() }))
+    server.use(http.patch('*/api/documents/:id/cases/:caseIndex/fields', async () => { await hold() }))
+    const { user, pane } = await openField(first)
+    const toolbar = () => screen.getByRole('group', { name: `Review ${fieldOf(first).label}` })
+    const bulkButton = (name: string) => within(pane).getByRole('button', { name })
+
+    // A field review in flight: the bulk buttons wait, and neither they nor the keys send anything.
+    await user.click(within(toolbar()).getByRole('button', { name: 'Reject this' }))
+    await waitFor(() => expect(seen).toHaveLength(1))
+    expect(bulkButton('Accept all')).toHaveAttribute('aria-disabled', 'true')
+    expect(bulkButton('Reject all')).toHaveAttribute('aria-disabled', 'true')
+    await user.click(bulkButton('Accept all'))
+    await user.keyboard('{Alt>}{Shift>}a{/Shift}{/Alt}')
+    expect(seen).toHaveLength(1)
+    release()
+    await waitFor(() => expect(bulkButton('Accept all')).not.toHaveAttribute('aria-disabled'))
+
+    // A bulk review in flight: the field buttons wait.
+    await user.click(bulkButton('Accept all'))
+    await waitFor(() => expect(seen).toHaveLength(2))
+    const accept = await screen.findAllByRole('button', { name: 'Accept this' })
+    for (const b of accept) expect(b).toHaveAttribute('aria-disabled', 'true')
+    await user.click(accept[0] as HTMLElement)
+    expect(seen).toHaveLength(2)
+    release()
+    await waitFor(() => expect(bar(pane)).toHaveAttribute('aria-valuenow', String(total)))
+    expect(seen.map((s) => s.body)).toEqual([{ action: 'reject' }, { action: 'accept' }])
+  })
+
+  it('advanceIsSkippedWhenTheCaseChangedInFlight', async () => {
+    const [first] = displayOrder() as [string]
+    let release = () => {}
+    server.use(http.patch('*/api/documents/:id/cases/:caseIndex/fields/:fieldId', async () => {
+      await new Promise<void>((resolve) => { release = resolve })
+    }))
+    const { user, router, selected } = await openField(first, 'MP1')
+    const toolbar = screen.getByRole('group', { name: `Review ${fieldOf(first).label}` })
+    await user.click(within(toolbar).getByRole('button', { name: 'Accept this' }))
+    // Switch case while the accept is saving; the field stays selected in the other case.
+    const tabs = screen.getByRole('tablist', { name: 'Cases' })
+    await user.click(within(tabs).getAllByRole('tab')[1] as HTMLElement)
+    await waitFor(() => expect(new URLSearchParams(router.state.location.search).get('case')).toBe('1'))
+    release()
+    const [caseOne] = screen.getAllByRole('tab')
+    await waitFor(() => expect(caseOne).toBeInTheDocument())
+    await waitFor(() => expect(selected()).toBe(first))
+    // Give the settled mutation every chance to move the selection; it must not.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(selected()).toBe(first)
+  })
+
   it('reviewChipsCountAndFilter', async () => {
     const [first, second] = displayOrder() as [string, string]
     const { user, pane, row } = await openField(first)

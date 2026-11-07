@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { errorMessage } from '../api/client'
 import { useCatalog, useDocument } from '../api/queries'
 import { useBulkReview, useReviewField } from '../api/reviews'
 import type { BulkAction, CaseOutput, Catalog, DocumentDetail } from '../api/types'
-import { useFieldKeyboard } from '../hooks/useFieldKeyboard'
+import { useFieldKeyboard, type ReviewKey } from '../hooks/useFieldKeyboard'
 import { useQuoteModel } from '../hooks/useQuoteModel'
 import { useSelection } from '../hooks/useSelection'
 import { buildCaseRows, withReview, type FieldRowModel, type SectionModel } from '../lib/fieldRows'
@@ -12,6 +13,8 @@ import { REVIEW_KINDS, conflictState, levelState, reviewChipState, unknownState 
 import type { EditValue } from '../lib/values'
 import { BulkReviewBar } from './BulkReviewBar'
 import { CaseTabs } from './CaseTabs'
+import { keyStart } from './controls/FieldControl'
+import type { EditStart } from './controls/types'
 import { FieldInspector } from './FieldInspector'
 import { FieldRow } from './FieldRow'
 import { ProgressBar } from './ProgressBar'
@@ -127,15 +130,15 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
   const shown = order.length
 
   // After a review the selection moves on to the next unreviewed visible field (wrapping round once).
-  const latest = useRef({ selectedFieldId, allRows })
+  const latest = useRef({ selectedFieldId, allRows, caseIndex: shownIndex })
   useEffect(() => {
-    latest.current = { selectedFieldId, allRows }
+    latest.current = { selectedFieldId, allRows, caseIndex: shownIndex }
   })
   const advance = useCallback(
-    (from: string, path: readonly string[]) => {
+    (from: string, path: readonly string[], fromCase: number) => {
       const now = latest.current
-      // The reviewer moved on while the review was saving: leave their selection alone.
-      if (now.selectedFieldId !== from) return
+      // The reviewer moved on (another field or case) while the review was saving: leave them there.
+      if (now.selectedFieldId !== from || now.caseIndex !== fromCase) return
       const reviewed = new Set(now.allRows.filter((r) => r.reviewKind !== 'unreviewed').map((r) => r.field.id))
       const at = path.indexOf(from)
       const next = [...path.slice(at + 1), ...path.slice(0, Math.max(at, 0))].find((id) => id !== from && !reviewed.has(id))
@@ -148,16 +151,20 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
   const bulk = useBulkReview(doc.id)
   const [actionError, setActionError] = useState<{ fieldId: string; message: string } | null>(null)
   const [bulkError, setBulkError] = useState<string | null>(null)
-  const busyField = reviewField.isPending && reviewField.variables.caseIndex === shownIndex ? reviewField.variables.fieldId : null
+  const [confirmingReject, setConfirmingReject] = useState(false)
+  // One review at a time: a field action and a bulk action never overlap.
+  const busy = reviewField.isPending || bulk.isPending
 
   const reviewOne = (fieldId: string, action: FieldAction) => {
+    if (busy) return
     const path = order
+    const fromCase = shownIndex
     setActionError(null)
     reviewField.mutate(
       { caseIndex: shownIndex, fieldId, action },
       {
         onSuccess: () => {
-          if (action !== 'reset') advance(fieldId, path)
+          if (action !== 'reset') advance(fieldId, path, fromCase)
         },
         onError: (error) => setActionError({ fieldId, message: errorMessage(error) }),
       },
@@ -165,10 +172,14 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
   }
   const saveEdit = (fieldId: string, value: EditValue) => {
     const path = order
+    const fromCase = shownIndex
     setActionError(null)
-    return reviewField.mutateAsync({ caseIndex: shownIndex, fieldId, action: 'edit', value }).then(() => advance(fieldId, path))
+    return reviewField
+      .mutateAsync({ caseIndex: shownIndex, fieldId, action: 'edit', value })
+      .then(() => advance(fieldId, path, fromCase))
   }
   const bulkReview = (action: BulkAction) => {
+    if (busy) return
     setBulkError(null)
     bulk.mutate(
       { caseIndex: shownIndex, action },
@@ -198,7 +209,37 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
     if (row && active && active !== row && row.closest('li')?.contains(active)) row.focus({ preventScroll: true })
     select(null)
   }, [select])
-  useFieldKeyboard({ order, selected: selectedFieldId, select: (id) => select(id, { reveal: 'focus' }), clear })
+  const focusRow = useCallback(() => selectedRow.current?.focus({ preventScroll: true }), [])
+
+  // A keyboard request to start editing the selected field, handed to its inspector once.
+  const [editStart, setEditStart] = useState<{ fieldId: string; start: EditStart } | null>(null)
+  // A request never outlives its selection (it must not fire when the field is selected again later).
+  if (editStart !== null && editStart.fieldId !== selectedFieldId) setEditStart(null)
+  const startEdit = (seed: string | null): boolean => {
+    const row = allRows.find((r) => r.field.id === selectedFieldId)
+    if (!row) return false
+    const how = seed === null ? { seed: null, typeThrough: false } : keyStart(row.field.type, seed)
+    // Synchronously, so the control has focus before the browser acts on the key (type-through).
+    flushSync(() => setEditStart({ fieldId: row.field.id, start: { seed: how.seed } }))
+    return !how.typeThrough
+  }
+  const reviewAll = (action: ReviewKey) => {
+    if (busy || unreviewed === 0) return
+    if (action === 'accept') bulkReview('accept')
+    else setConfirmingReject(true)
+  }
+  useFieldKeyboard({
+    order,
+    selected: selectedFieldId,
+    selectedRow,
+    select: (id) => select(id, { reveal: 'focus' }),
+    clear,
+    startEdit,
+    review: (action) => {
+      if (selectedFieldId !== null) reviewOne(selectedFieldId, action)
+    },
+    reviewAll,
+  })
 
   const toggle = (key: string) =>
     setActive((prev) => {
@@ -223,7 +264,9 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
             unreviewed={unreviewed}
             caseName={caseName}
             onBulk={bulkReview}
-            busy={bulk.isPending}
+            confirming={confirmingReject}
+            onConfirming={setConfirmingReject}
+            busy={busy}
             error={bulkError}
           />
         </div>
@@ -269,7 +312,7 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
                         variant="compact"
                         label={`Review ${row.field.label}`}
                         review={row.review}
-                        busy={busyField === id}
+                        busy={busy}
                         onAction={(action) => reviewOne(id, action)}
                       />
                     }
@@ -286,8 +329,11 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
                         modelText={row.value.text}
                         onSave={(value) => saveEdit(id, value)}
                         onReview={(action) => reviewOne(id, action)}
-                        busy={busyField === id}
+                        busy={busy}
                         actionError={actionError?.fieldId === id ? actionError.message : null}
+                        start={editStart?.fieldId === id ? editStart.start : null}
+                        onStarted={() => setEditStart(null)}
+                        onClose={focusRow}
                       />
                     )}
                   />

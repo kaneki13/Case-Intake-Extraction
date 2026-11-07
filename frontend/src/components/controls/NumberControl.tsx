@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { CatalogField } from '../../api/types'
 import { errorIdOf, type ControlProps } from './types'
 import { FieldMessage } from './FieldMessage'
@@ -21,9 +21,9 @@ function parse(field: CatalogField, text: string, badInput: boolean): Parsed {
 /**
  * A number input with the catalog's min/max; step 1 for integer fields, any for number fields.
  * Input that is not a number, not whole for an integer, or out of range shows a message inline and is
- * never committed to the draft.
+ * never committed to the draft. Started with a seed, the seed replaces the text.
  */
-export function NumberControl({ id, field, value, onChange }: ControlProps<number | null>) {
+export function NumberControl({ id, field, value, onChange, start }: ControlProps<number | null>) {
   const [text, setText] = useState(value === null ? '' : String(value))
   const [badInput, setBadInput] = useState(false)
   // Follow outside changes (reset to the model value) without clobbering what is being typed.
@@ -37,6 +37,19 @@ export function NumberControl({ id, field, value, onChange }: ControlProps<numbe
     }
   }
 
+  const inputRef = useRef<HTMLInputElement>(null)
+  useLayoutEffect(() => {
+    if (!start) return
+    inputRef.current?.focus()
+    if (start.seed === null) return
+    setText(start.seed)
+    setBadInput(false)
+    const p = parse(field, start.seed, false)
+    if (p.ok) onChange(p.value)
+    // Only a new start request acts; the other values are read as they are then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start])
+
   const parsed = parse(field, text, badInput)
   const errorId = errorIdOf(id)
   const { min, max } = field.validation ?? {}
@@ -44,6 +57,7 @@ export function NumberControl({ id, field, value, onChange }: ControlProps<numbe
   return (
     <>
       <input
+        ref={inputRef}
         id={id}
         type="number"
         inputMode={field.type === 'integer' ? 'numeric' : 'decimal'}

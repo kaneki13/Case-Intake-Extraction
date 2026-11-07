@@ -33,23 +33,27 @@ Requires Node 22 and npm 10. Run them from the repo root with `npm --prefix fron
 
 ## Keyboard
 
-| Key | Action |
-|---|---|
-| `j` / `↓` | Select the next field. Only visible fields count (catalog order, after the summary filters, in the current case). With nothing selected, this picks the first field. `↓` does this only outside the document text and the document list; there it scrolls. |
-| `k` / `↑` | Select the previous field. With nothing selected, this picks the last field. `↑` does this only outside the document text and the document list; there it scrolls. |
-| `Enter` | Toggle the inspector: close the selected field, or reopen the last one. When focus is on a row, Enter clicks that row. |
-| `Esc` | Clear the selection. Focus stays on the row. |
+There are no letter shortcuts: typing always means typing.
 
-The selected row is scrolled into view and focused, and the document scrolls to its quote. Clicking a quote in the text selects its field and scrolls its row into view.
+| Key | Where | Action |
+|---|---|---|
+| `↓` / `↑` | Focus in the fields pane | Select the next / previous field. Only visible fields count (catalog order, after the summary filters, in the current case). With nothing selected, `↓` picks the first field and `↑` the last. No wrap-around. Elsewhere (document text, document list, nothing focused) the arrows scroll as usual. |
+| `Enter` | On the selected row | Start editing: focus moves into the field's control. |
+| A character | On the selected row | Start editing with that character. Text and number fields: it replaces the value (caret after it). Date: a digit is typed into the date input; anything else just opens it. Single choice: the option list opens with the first option starting with that character highlighted. Multiple choice: the option list opens with the character in its filter box. List: the character goes into the add box. |
+| `Enter` | In the editor | Save the edit (`edit` review), then move to the next unreviewed visible field. Unchanged: close the editor, focus back on the row, nothing sent. On a closed option list or multiple choice with nothing changed, Enter opens it. In a list's add box with text, Enter adds the item; on an empty add box it saves. |
+| `Esc` | In the editor | Cancel: the shown value comes back, the editor closes, focus returns to the row. Nothing is recorded. |
+| `Esc` | Anywhere else | Clear the selection. Focus stays on the row. |
+| `Alt+A` / `Alt+R` | Field selected | Accept / reject this field, then move to the next unreviewed visible field. |
+| `Alt+Shift+A` | Anywhere | Accept all unreviewed fields of the case. |
+| `Alt+Shift+R` | Anywhere | Reject all unreviewed fields of the case: asks for confirmation first. |
+
+The buttons do the same: Accept this, Reject this and Reset on the selected row and in the inspector; Accept all and Reject all in the fields-pane header. One review is saved at a time: while a field or bulk review is saving, both sets of buttons and their keys wait. A field selected from the keyboard is scrolled into view and focused, and the document scrolls to its quote. Clicking a quote in the text selects its field and scrolls its row into view.
 
 Shortcuts are ignored in these cases, so typing and the menus keep working:
 
-- focus is in a text field, select or editable area;
+- focus is in the editor (only its `Enter` and `Esc` apply), a text field, a select or an editable area;
 - an open list, option, menu or dialog has focus;
-- Ctrl, ⌘ or Alt is held;
-- the key is `↓` or `↑` and focus is in the document text or the document list (they scroll; `j` / `k` still work there);
+- Ctrl or ⌘ is held;
 - the key was already handled.
 
-On a closed option picker, `j` and `k` stay with the picker, which uses letters to jump to an option.
-
-`Tab` moves through the controls as usual. Inside an open option list, the arrow keys move, `Space` or `Enter` choose, and `Esc` closes the list and returns focus to its button.
+`Tab` moves through the controls as usual. Inside an open option list, the arrow keys move, `Space` or `Enter` choose, and `Esc` closes the list and returns focus to its button. `Space` (or a click) opens a multiple-choice list.

@@ -1,16 +1,27 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { NONE_STATED } from '../../lib/placeholders'
 import { Icon } from '../Icon'
 import { errorIdOf, type ControlProps } from './types'
 import { FieldMessage } from './FieldMessage'
 import styles from './Control.module.css'
 
-/** A list of free-text items: chips with remove buttons, and an input that adds a trimmed, new item. */
-export function StringListControl({ id, field, value, onChange }: ControlProps<string[]>) {
+/**
+ * A list of free-text items: chips with remove buttons, and an input that adds a trimmed, new item.
+ * A start focuses the add input; a seed goes into it.
+ */
+export function StringListControl({ id, field, value, onChange, start }: ControlProps<string[]>) {
   const [entry, setEntry] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const errorId = errorIdOf(id)
+
+  useLayoutEffect(() => {
+    if (!start) return
+    inputRef.current?.focus()
+    if (start.seed === null) return
+    setEntry(start.seed)
+    setMessage(null)
+  }, [start])
 
   const add = () => {
     const item = entry.trim()

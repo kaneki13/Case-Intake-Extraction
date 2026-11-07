@@ -1,11 +1,13 @@
-import { useId, useMemo, useState, type FormEvent } from 'react'
+import { useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { errorMessage } from '../api/client'
 import type { CatalogField, FieldResult, Provenance, Review } from '../api/types'
 import { buildCodePointIndex, toUtf16 } from '../lib/offsets'
 import { requestQuoteScroll } from '../lib/quoteScroll'
 import { conflictCandidates } from '../lib/status'
 import { sameValue, type EditValue } from '../lib/values'
+import { EDITOR_ATTR } from '../hooks/useFieldKeyboard'
 import { FieldControl } from './controls/FieldControl'
+import type { EditStart } from './controls/types'
 import { Icon } from './Icon'
 import { ReviewButtons, type FieldAction } from './ReviewButtons'
 import styles from './FieldInspector.module.css'
@@ -36,15 +38,24 @@ export interface FieldInspectorProps {
   busy: boolean
   /** Why the last accept, reject or reset of this field failed, or null. */
   actionError: string | null
+  /** A keyboard request to start editing (Enter or a typed character on the row), or null. */
+  start: EditStart | null
+  /** Called once `start` has been handed to the control. */
+  onStarted: () => void
+  /** Closes the editor: focus goes back to the row. */
+  onClose: () => void
 }
 
 /**
- * The inline region under a selected row: the catalog-driven control with Save (Enter inside the
- * control saves too), the review buttons, every quote as a clickable excerpt, then the note or the
- * conflict candidates.
+ * The inline region under a selected row: the catalog-driven control with Save, the review buttons,
+ * every quote as a clickable excerpt, then the note or the conflict candidates.
+ *
+ * The control and Save form the editor. Inside it, Enter on the control saves a changed value and
+ * closes an unchanged one (a closed option list or multi-select opens on Enter instead), and Esc
+ * cancels: the shown value comes back, nothing is recorded, and focus returns to the row.
  */
 export function FieldInspector({
-  id, field, result, review, text, invalid, modelText, onSave, onReview, busy, actionError,
+  id, field, result, review, text, invalid, modelText, onSave, onReview, busy, actionError, start, onStarted, onClose,
 }: FieldInspectorProps) {
   const fieldId = field.id
   const controlId = useId()
@@ -60,6 +71,9 @@ export function FieldInspector({
   const [seen, setSeen] = useState<unknown>(current)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // Bumped by a cancel: the control starts afresh, dropping text it held back (e.g. not yet valid).
+  const [generation, setGeneration] = useState(0)
+  const formRef = useRef<HTMLFormElement>(null)
   if (!sameValue(field, seen, current)) {
     setSeen(current)
     setValue(current)
@@ -71,22 +85,65 @@ export function FieldInspector({
     setValue(next)
     setSaveError(null)
   }
-  const save = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+  // The control (child) takes the start in its layout effect first; then it is spent.
+  useLayoutEffect(() => {
+    if (start) onStarted()
+    // Only a new start request acts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start])
+
+  const commit = () => {
     // A control holding text it cannot accept (it says why) keeps its last valid value: never save that.
-    const bad = event.currentTarget.querySelector<HTMLElement>('[aria-invalid="true"]')
+    const bad = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')
     if (bad) {
       bad.focus()
       return
     }
-    if (unchanged || saving || busy) return
+    if (unchanged) {
+      onClose()
+      return
+    }
+    if (saving || busy) return
     setSaving(true)
     onSave(value as EditValue)
+      .then(() => {
+        // Saved: the editor closes (the panel may already have moved on to the next field).
+        if (formRef.current?.contains(document.activeElement)) onClose()
+      })
       .catch((error: unknown) => {
         setSaveError(errorMessage(error))
         document.getElementById(controlId)?.focus()
       })
       .finally(() => setSaving(false))
+  }
+  const save = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    commit()
+  }
+  const cancel = () => {
+    onClose()
+    setValue(current)
+    setSaveError(null)
+    setGeneration((g) => g + 1)
+  }
+  // Capture phase: ahead of the control's own Enter (a closed list would open, a button would click).
+  const onEnter = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (event.key !== 'Enter' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    const target = event.target as HTMLElement
+    if (target.id !== controlId) return
+    // The add box of a list adds its text first; Enter on an empty box saves.
+    if (field.type === 'string_list' && target instanceof HTMLInputElement && target.value.trim() !== '') return
+    // A closed option list or multi-select with nothing changed opens on Enter.
+    const picker = field.type === 'coded' || field.type === 'coded_multi'
+    if (picker && unchanged) return
+    event.preventDefault()
+    commit()
+  }
+  const onEscape = (event: KeyboardEvent<HTMLFormElement>) => {
+    // An open list or popover closes first (it handles Esc before this).
+    if (event.key !== 'Escape' || event.defaultPrevented) return
+    event.preventDefault()
+    cancel()
   }
 
   const index = useMemo(() => (text === null ? null : buildCodePointIndex(text)), [text])
@@ -107,8 +164,17 @@ export function FieldInspector({
           </p>
         )}
         {/* noValidate: the controls show their own messages, and the save handler refuses invalid input. */}
-        <form className={styles.form} noValidate onSubmit={save} aria-describedby={saveError ? errorId : undefined}>
-          <FieldControl id={controlId} field={field} value={value} onChange={change} />
+        <form
+          ref={formRef}
+          className={styles.form}
+          noValidate
+          onSubmit={save}
+          onKeyDownCapture={onEnter}
+          onKeyDown={onEscape}
+          aria-describedby={saveError ? errorId : undefined}
+          {...{ [EDITOR_ATTR]: '' }}
+        >
+          <FieldControl key={generation} id={controlId} field={field} value={value} onChange={change} start={start} />
           {saveError && (
             <p id={errorId} role="alert" className={styles.saveError}>
               <span aria-hidden="true">! </span>
@@ -125,7 +191,7 @@ export function FieldInspector({
               <Icon name="check" size={14} />
               Save
             </button>
-            <span className={styles.hint}>{unchanged ? 'Change the value to save an edit' : 'Enter saves'}</span>
+            <span className={styles.hint}>{unchanged ? 'Change the value to save an edit' : 'Enter saves · Esc cancels'}</span>
           </div>
         </form>
         <ReviewButtons variant="full" label="Review this field" review={review} busy={busy || saving} onAction={onReview} />

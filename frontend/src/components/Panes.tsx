@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useParams } from 'react-router'
+import { FIELDS_PANE_ID } from '../hooks/useFieldKeyboard'
 import { revealOf } from '../hooks/useSelection'
 import styles from './Panes.module.css'
 
@@ -40,7 +41,7 @@ export function Panes({ document, fields }: { document: ReactNode; fields: React
       <main id="document" ref={mainRef} className={styles.main} tabIndex={-1}>
         {document}
       </main>
-      <aside aria-label="Extracted fields" className={styles.aside} data-open={sheetOpen}>
+      <aside id={FIELDS_PANE_ID} aria-label="Extracted fields" className={styles.aside} data-open={sheetOpen}>
         <button
           type="button"
           className={styles.handle}

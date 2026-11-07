@@ -155,7 +155,7 @@ public class DocumentPipeline {
     }
 
     private static LlmRequest request(String model, Prompt prompt, JsonNode schema) {
-        return new LlmRequest(model, prompt.system(), prompt.user(), schema);
+        return new LlmRequest(model, prompt.system(), prompt.user(), schema, List.of());
     }
 
     private static JsonNode jsonObject(String output) {

@@ -39,7 +39,7 @@ class RecordingExchangeSourceTest {
         }
     };
     final Clock clock = Clock.fixed(Instant.parse("2026-11-08T10:00:00Z"), ZoneOffset.UTC);
-    final LlmRequest req = new LlmRequest("m", "sys", "user", null);
+    final LlmRequest req = new LlmRequest("m", "sys", "user", null, java.util.List.of());
 
     RecordingExchangeSource src(boolean force) {
         return new RecordingExchangeSource(client, new FixtureStore(dir), "1.0", force, clock);

@@ -1,0 +1,98 @@
+.column {
+  max-width: 72ch;
+  margin: 0 auto;
+  animation: settle var(--dur) var(--ease);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding-bottom: var(--s6);
+  margin-bottom: var(--s6);
+  border-bottom: 1px solid var(--border);
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: var(--t13);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.title {
+  font-size: var(--t20);
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s1);
+}
+
+.cases {
+  color: var(--muted);
+  font-size: var(--t13);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The source as a readable document, not code (design prompt §2). */
+.text {
+  font-family: var(--font-doc);
+  font-size: 17px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-optical-sizing: auto;
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .column {
+    animation: none;
+  }
+}
+
+.warning {
+  color: var(--caution);
+  font-size: var(--t13);
+  font-weight: 600;
+}
+
+/* Quote spans are created by SegmentedText with plain class names. */
+.text :global(.quote) {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.text :global(.quote.is-selected) {
+  background: var(--accent-tint);
+  text-decoration: underline solid var(--accent);
+  text-decoration-thickness: 2px;
+  border-radius: var(--radius-s);
+  box-shadow: 0 0 0 2px var(--accent-tint);
+}
+
+/* The screen-reader "selected quote" marker is not part of the document: keep it out of copied text. */
+.text :global(.visually-hidden) {
+  user-select: none;
+}

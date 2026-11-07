@@ -1,0 +1,346 @@
+{
+  "document_id" : "D04",
+  "catalog_version" : "1.0",
+  "model" : "gemini/gemini-3.6-flash",
+  "flags" : [ "multiple_patients" ],
+  "cases" : [ {
+    "case_index" : 0,
+    "label" : "Mother",
+    "fields" : {
+      "patient_initials" : {
+        "status" : "extracted",
+        "value" : "PRD",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Mrs P.R.D.",
+          "start" : 405,
+          "end" : 415
+        } ]
+      },
+      "patient_age_years" : {
+        "status" : "extracted",
+        "value" : 29,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "29 years old",
+          "start" : 417,
+          "end" : 429
+        } ]
+      },
+      "patient_sex" : {
+        "status" : "extracted",
+        "value" : "female",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "MOTHER",
+          "start" : 398,
+          "end" : 404
+        }, {
+          "quote" : "Mrs P.R.D.",
+          "start" : 405,
+          "end" : 415
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_name" : {
+        "status" : "extracted",
+        "value" : "sertraline",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "sertraline",
+          "start" : 442,
+          "end" : 452
+        } ]
+      },
+      "suspect_drug_dose_value" : {
+        "status" : "extracted",
+        "value" : 50,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "50 mg",
+          "start" : 453,
+          "end" : 458
+        } ]
+      },
+      "suspect_drug_dose_unit" : {
+        "status" : "extracted",
+        "value" : "mg",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "50 mg",
+          "start" : 453,
+          "end" : 458
+        } ]
+      },
+      "suspect_drug_route" : {
+        "status" : "extracted",
+        "value" : "oral",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "orally",
+          "start" : 467,
+          "end" : 473
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_start_date" : {
+        "status" : "extracted",
+        "value" : "2025-10-14",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "started by her psychiatrist on 14 October 2025",
+          "start" : 529,
+          "end" : 575
+        } ]
+      },
+      "event_terms" : {
+        "status" : "extracted",
+        "value" : [ "headache", "confusion", "vomiting", "hyponatraemia", "siadh" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "presented with headache, confusion and one episode of vomiting",
+          "start" : 792,
+          "end" : 854
+        }, {
+          "quote" : "hyponatraemia secondary to sertraline (SIADH)",
+          "start" : 900,
+          "end" : 945
+        } ],
+        "note" : "Confidence lowered: LIST_FROM_MULTIPLE_QUOTES."
+      },
+      "event_onset_date" : {
+        "status" : "extracted",
+        "value" : "2026-05-22",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "on 22 May 2026, she presented with headache",
+          "start" : 772,
+          "end" : 815
+        } ]
+      },
+      "event_outcome" : {
+        "status" : "extracted",
+        "value" : "recovered",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "She has recovered.",
+          "start" : 1069,
+          "end" : 1087
+        } ]
+      },
+      "seriousness_criteria" : {
+        "status" : "extracted",
+        "value" : [ "hospitalization" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Both patients remain in hospital at the time of this report.",
+          "start" : 1665,
+          "end" : 1725
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "reporter_type" : {
+        "status" : "extracted",
+        "value" : "physician",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Dr Meera Kulkarni, MD (Obstetrics)",
+          "start" : 1746,
+          "end" : 1780
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "report_date" : {
+        "status" : "extracted",
+        "value" : "2026-06-08",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Date: 8 June 2026",
+          "start" : 92,
+          "end" : 109
+        } ]
+      },
+      "country" : {
+        "status" : "extracted",
+        "value" : "IN",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Pune, Maharashtra, India",
+          "start" : 66,
+          "end" : 90
+        } ]
+      },
+      "concomitant_drugs" : {
+        "status" : "extracted",
+        "value" : [ "iron", "folic acid" ],
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "iron and folic acid supplements",
+          "start" : 712,
+          "end" : 743
+        } ]
+      }
+    }
+  }, {
+    "case_index" : 1,
+    "label" : "Infant",
+    "fields" : {
+      "patient_initials" : {
+        "status" : "extracted",
+        "value" : "RD",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "initials recorded as Baby R.D.",
+          "start" : 1113,
+          "end" : 1143
+        } ],
+        "note" : "Confidence lowered: DERIVED."
+      },
+      "patient_age_years" : {
+        "status" : "extracted",
+        "value" : 0,
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "was delivered at 38 weeks on 3 June 2026",
+          "start" : 1146,
+          "end" : 1186
+        } ],
+        "note" : "Confidence lowered: DERIVED, LITERAL_ABSENT."
+      },
+      "patient_sex" : {
+        "status" : "extracted",
+        "value" : "male",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "a boy",
+          "start" : 1106,
+          "end" : 1111
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_name" : {
+        "status" : "extracted",
+        "value" : "sertraline",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "attributed to in-utero exposure to sertraline",
+          "start" : 1445,
+          "end" : 1490
+        } ]
+      },
+      "suspect_drug_dose_value" : {
+        "status" : "unknown",
+        "note" : "The drug was taken by the mother; no dose is stated for the infant directly."
+      },
+      "suspect_drug_dose_unit" : {
+        "status" : "unknown",
+        "note" : "No dose unit is stated for the infant."
+      },
+      "suspect_drug_route" : {
+        "status" : "unknown",
+        "note" : "No route of administration is stated for the infant."
+      },
+      "suspect_drug_start_date" : {
+        "status" : "unknown",
+        "note" : "No drug start date is stated for the infant."
+      },
+      "event_terms" : {
+        "status" : "extracted",
+        "value" : [ "jitteriness", "high-pitched cry", "poor feeding", "respiratory distress", "neonatal adaptation syndrome" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "jitteriness, a high-pitched cry, poor feeding and mild respiratory distress",
+          "start" : 1265,
+          "end" : 1340
+        }, {
+          "quote" : "neonatal adaptation syndrome",
+          "start" : 1416,
+          "end" : 1444
+        } ],
+        "note" : "Confidence lowered: LIST_FROM_MULTIPLE_QUOTES."
+      },
+      "event_onset_date" : {
+        "status" : "extracted",
+        "value" : "2026-06-03",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "was delivered at 38 weeks on 3 June 2026",
+          "start" : 1146,
+          "end" : 1186
+        }, {
+          "quote" : "Within the first 24 hours of life he developed",
+          "start" : 1218,
+          "end" : 1264
+        } ]
+      },
+      "event_outcome" : {
+        "status" : "extracted",
+        "value" : "recovering",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "The symptoms are settling; at the time of writing he is feeding better",
+          "start" : 1541,
+          "end" : 1611
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "seriousness_criteria" : {
+        "status" : "extracted",
+        "value" : [ "hospitalization" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Both patients remain in hospital at the time of this report.",
+          "start" : 1665,
+          "end" : 1725
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "reporter_type" : {
+        "status" : "extracted",
+        "value" : "physician",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Dr Meera Kulkarni, MD (Obstetrics)",
+          "start" : 1746,
+          "end" : 1780
+        }, {
+          "quote" : "Dr Sanjay Pathak, DM (Neonatology)",
+          "start" : 1781,
+          "end" : 1815
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "report_date" : {
+        "status" : "extracted",
+        "value" : "2026-06-08",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Date: 8 June 2026",
+          "start" : 92,
+          "end" : 109
+        } ]
+      },
+      "country" : {
+        "status" : "extracted",
+        "value" : "IN",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Pune, Maharashtra, India",
+          "start" : 66,
+          "end" : 90
+        } ],
+        "note" : "Confidence lowered: DERIVED."
+      },
+      "concomitant_drugs" : {
+        "status" : "extracted",
+        "value" : [ ],
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "The infant did not receive any medicine himself.",
+          "start" : 1492,
+          "end" : 1540
+        } ]
+      }
+    }
+  } ]
+}

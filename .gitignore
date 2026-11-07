@@ -1,0 +1,11 @@
+# Secrets — never commit
+.env
+.env.*
+*.local.yml
+# Build / IDE
+target/
+node_modules/
+frontend/dist/
+.idea/
+# Subagent-driven-development scratch
+.superpowers/

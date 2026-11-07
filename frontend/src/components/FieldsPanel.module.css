@@ -1,0 +1,45 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+
+.heading {
+  font-size: var(--t14);
+  font-weight: 600;
+}
+
+.caseLabel {
+  color: var(--muted);
+  font-size: var(--t13);
+  font-variant-numeric: tabular-nums;
+}
+
+.unavailable {
+  margin: var(--s8) var(--s4);
+  color: var(--muted);
+  font-size: var(--t13);
+  text-align: center;
+}
+
+.errorWrap {
+  padding: var(--s4);
+}
+
+.warning {
+  margin: var(--s3) var(--s4) var(--s4);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--caution) 10%, transparent);
+  color: var(--caution);
+  font-size: var(--t13);
+  font-weight: 500;
+}

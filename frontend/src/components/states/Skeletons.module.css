@@ -1,0 +1,125 @@
+.bar {
+  display: block;
+  height: 10px;
+  border-radius: var(--radius-s);
+  background: linear-gradient(90deg, var(--skeleton) 0%, var(--subtle) 50%, var(--skeleton) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.thin {
+  height: 8px;
+}
+
+.heading {
+  height: 20px;
+}
+
+.pill,
+.chip {
+  height: 20px;
+  border-radius: 999px;
+}
+
+.chip {
+  height: 24px;
+}
+
+.line {
+  height: 12px;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    animation: none;
+  }
+}
+
+/* Rail */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: 0 var(--s2);
+}
+
+.railItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3) var(--s3) var(--s3) var(--s4);
+}
+
+.railTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Document */
+.doc {
+  max-width: 72ch;
+  margin: 0 auto;
+}
+
+.docHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding-bottom: var(--s6);
+  margin-bottom: var(--s6);
+  border-bottom: 1px solid var(--border);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.docText {
+  display: flex;
+  flex-direction: column;
+  /* 17px x 1.65 line box, minus the 12px bar */
+  gap: 16px;
+}
+
+.gap {
+  height: 12px;
+}
+
+/* Fields */
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  padding: var(--s4);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.section > .thin {
+  margin-bottom: var(--s2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  height: 36px;
+  border-bottom: 1px solid var(--border);
+}

@@ -1,0 +1,190 @@
+.inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0 0 var(--s2);
+  padding: var(--s3) var(--s4) var(--s4) var(--s5);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--subtle);
+  animation: open var(--dur) var(--ease);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.kicker {
+  color: var(--muted);
+  font-size: var(--t13);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quotes,
+.candidates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.excerpt {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s2);
+  width: 100%;
+  padding: 6px var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: left;
+}
+
+button.excerpt {
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+button.excerpt:hover {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.quoteText {
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-doc);
+  font-size: var(--t14);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.jump {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  height: 21px;
+  color: var(--accent);
+}
+
+.excerpt[data-invalid] {
+  flex-direction: column;
+  gap: 2px;
+  border-style: dashed;
+}
+
+.invalidNote {
+  color: var(--caution);
+  font-size: var(--t13);
+  font-weight: 500;
+}
+
+.candidate {
+  padding: var(--s1) var(--s2);
+  border-left: 2px solid var(--conflict);
+  background: color-mix(in srgb, var(--conflict) 8%, var(--surface));
+  font-size: var(--t13);
+  font-weight: 500;
+}
+
+.note,
+.missing {
+  color: var(--text);
+  font-size: var(--t13);
+  line-height: 1.5;
+}
+
+.missing strong {
+  font-weight: 600;
+}
+
+.empty {
+  color: var(--muted);
+  font-size: var(--t13);
+}
+
+@keyframes open {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The control, with the draft bar above it while a local edit exists. */
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--border);
+}
+
+.draftBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s1) var(--s1) var(--s1) var(--s2);
+  border: 1px solid color-mix(in srgb, var(--edited) 45%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--edited) 8%, var(--surface));
+}
+
+.draftNote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--edited);
+  font-size: var(--t13);
+  font-weight: 600;
+}
+
+.draftIcon {
+  font-size: var(--t13);
+}
+
+.reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--t13);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.reset:hover {
+  border-color: var(--edited);
+}
+
+.modelValue {
+  color: var(--muted);
+  font-size: var(--t13);
+}
+
+.modelValue span {
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector {
+    animation: none;
+  }
+}

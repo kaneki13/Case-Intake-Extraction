@@ -1,0 +1,178 @@
+{
+  "document_id" : "D01",
+  "catalog_version" : "1.0",
+  "model" : "gemini/gemini-3.6-flash",
+  "flags" : [ ],
+  "cases" : [ {
+    "case_index" : 0,
+    "label" : "Mrs M.K.",
+    "fields" : {
+      "patient_initials" : {
+        "status" : "extracted",
+        "value" : "MK",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Mrs M.K.",
+          "start" : 276,
+          "end" : 284
+        } ]
+      },
+      "patient_age_years" : {
+        "status" : "extracted",
+        "value" : 54,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "54-year-old woman",
+          "start" : 288,
+          "end" : 305
+        } ]
+      },
+      "patient_sex" : {
+        "status" : "extracted",
+        "value" : "female",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "54-year-old woman",
+          "start" : 288,
+          "end" : 305
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_name" : {
+        "status" : "extracted",
+        "value" : "amoxicillin",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "prescribed amoxicillin 500 mg capsules",
+          "start" : 362,
+          "end" : 400
+        } ]
+      },
+      "suspect_drug_dose_value" : {
+        "status" : "extracted",
+        "value" : 500,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "amoxicillin 500 mg capsules",
+          "start" : 373,
+          "end" : 400
+        } ]
+      },
+      "suspect_drug_dose_unit" : {
+        "status" : "extracted",
+        "value" : "mg",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "amoxicillin 500 mg capsules",
+          "start" : 373,
+          "end" : 400
+        } ]
+      },
+      "suspect_drug_route" : {
+        "status" : "extracted",
+        "value" : "oral",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "one capsule orally three times daily",
+          "start" : 402,
+          "end" : 438
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_start_date" : {
+        "status" : "extracted",
+        "value" : "2026-03-02",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "She took the first dose on 2 March 2026.",
+          "start" : 481,
+          "end" : 521
+        } ]
+      },
+      "event_terms" : {
+        "status" : "extracted",
+        "value" : [ "pruritic maculopapular rash", "swelling of the lips", "periorbital swelling" ],
+        "confidence" : "low",
+        "provenance" : [ {
+          "quote" : "developed a widespread pruritic maculopapular rash on the trunk and limbs, followed within hours by swelling of the lips and periorbital area.",
+          "start" : 543,
+          "end" : 685
+        } ],
+        "note" : "Confidence lowered: LITERAL_ABSENT."
+      },
+      "event_onset_date" : {
+        "status" : "extracted",
+        "value" : "2026-03-04",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "On 4 March 2026 she developed a widespread pruritic maculopapular rash",
+          "start" : 523,
+          "end" : 593
+        } ]
+      },
+      "event_outcome" : {
+        "status" : "extracted",
+        "value" : "recovered",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "The rash and the facial swelling resolved completely by 7 March 2026",
+          "start" : 868,
+          "end" : 936
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "seriousness_criteria" : {
+        "status" : "extracted",
+        "value" : [ "hospitalization" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "She attended the emergency department and was admitted for observation.",
+          "start" : 686,
+          "end" : 757
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "reporter_type" : {
+        "status" : "extracted",
+        "value" : "physician",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Dr Helen Carrow\nConsultant Dermatologist",
+          "start" : 1118,
+          "end" : 1158
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "report_date" : {
+        "status" : "extracted",
+        "value" : "2026-03-10",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Date: 10 March 2026",
+          "start" : 68,
+          "end" : 87
+        } ]
+      },
+      "country" : {
+        "status" : "extracted",
+        "value" : "GB",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Leeds, United Kingdom",
+          "start" : 45,
+          "end" : 66
+        } ]
+      },
+      "concomitant_drugs" : {
+        "status" : "extracted",
+        "value" : [ ],
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "She was not taking any other medication at the time of the reaction.",
+          "start" : 966,
+          "end" : 1034
+        } ]
+      }
+    }
+  } ]
+}

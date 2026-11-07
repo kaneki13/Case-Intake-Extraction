@@ -1,0 +1,242 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  color: var(--text);
+  font-size: var(--t13);
+  font-weight: 600;
+}
+
+.input,
+.trigger {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--t14);
+  font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.input:hover,
+.trigger:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--risk);
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.trigger[data-placeholder] {
+  color: var(--muted);
+}
+
+.chevron {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* Select and popover surfaces: portalled to the body, so they sit above the panes. */
+.menu {
+  z-index: 50;
+  min-width: var(--radix-select-trigger-width, var(--radix-popover-trigger-width, 200px));
+  max-height: var(--radix-select-content-available-height, var(--radix-popover-content-available-height, 320px));
+  overflow: auto;
+  padding: var(--s1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(16 24 32 / 0.14);
+  animation: menu-in var(--dur-fast) var(--ease);
+}
+
+.viewport {
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  min-height: 30px;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--radius-s);
+  color: var(--text);
+  font-size: var(--t14);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.item[data-highlighted] {
+  background: var(--accent-tint);
+}
+
+.item[data-state='checked'] {
+  font-weight: 600;
+}
+
+.itemCheck {
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 30px;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--radius-s);
+  font-size: var(--t14);
+  cursor: pointer;
+}
+
+.check:hover,
+.check:focus-within {
+  background: var(--accent-tint);
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 2px 0 var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: var(--t13);
+}
+
+.chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipRemove {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.chipRemove:hover {
+  background: var(--subtle);
+  color: var(--text);
+}
+
+.addRow {
+  display: flex;
+  gap: var(--s2);
+}
+
+.button {
+  flex: none;
+  min-height: 32px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--t13);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.none {
+  color: var(--muted);
+  font-size: var(--t13);
+  font-style: italic;
+}
+
+.error {
+  color: var(--risk);
+  font-size: var(--t13);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.notice {
+  padding: var(--s1) var(--s2);
+  border-left: 2px solid var(--caution);
+  background: color-mix(in srgb, var(--caution) 8%, var(--surface));
+  color: var(--text);
+  font-size: var(--t13);
+  line-height: 1.4;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu {
+    animation: none;
+  }
+}

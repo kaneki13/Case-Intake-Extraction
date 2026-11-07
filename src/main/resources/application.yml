@@ -1,0 +1,25 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]   # git-ignored; holds GEMINI_API_KEY
+app:
+  catalog: catalog/field_catalog.json
+  documents: [documents]          # stretch phase: [documents, documents/stretch]
+  fixtures: fixtures
+  out: out
+llm:
+  provider: gemini                # selects the LlmClient bean
+  models:
+    # verified with GET /v1beta/models on 2026-11-07: newest stable Flash-Lite; extraction uses 3.6 Flash
+    # (3.8 Flash: high demand, free daily quota spent on 503 retries; 3.7 Flash bills to the same 3.8 quota)
+    case-finding: ${LLM_MODEL_CASES:gemini-3.5-flash-lite}
+    extraction: ${LLM_MODEL_EXTRACT:gemini-3.6-flash}
+  rate-limit:
+    requests-per-minute: 8
+  retry:
+    max-attempts: 3               # bounded: failed attempts (503, timeouts) count against the daily quota
+    initial-backoff: 2s
+    max-backoff: 60s
+  gemini:
+    base-url: https://generativelanguage.googleapis.com
+    api-key: ${GEMINI_API_KEY:}   # empty is allowed for replay/server, rejected by extract
+    timeout: 300s                 # thinking models can take over two minutes under load

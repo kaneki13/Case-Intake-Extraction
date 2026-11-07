@@ -1,0 +1,57 @@
+.badge {
+  --tone: var(--muted);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s1);
+  height: 20px;
+  padding: 0 7px 0 5px;
+  border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
+  color: var(--tone);
+  font-size: var(--t13);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.icon {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  font-size: var(--t13);
+  font-weight: 700;
+}
+
+.text {
+  letter-spacing: 0.01em;
+}
+
+.badge[data-tone='ok'] {
+  --tone: var(--ok);
+}
+
+.badge[data-tone='caution'] {
+  --tone: var(--caution);
+}
+
+.badge[data-tone='risk'] {
+  --tone: var(--risk);
+}
+
+.badge[data-tone='conflict'] {
+  --tone: var(--conflict);
+}
+
+.badge[data-tone='edited'] {
+  --tone: var(--edited);
+}
+
+/* unknown: no fill, a dashed neutral outline, so "nothing found" never reads as a finding */
+.badge[data-tone='muted'] {
+  border-style: dashed;
+  border-color: var(--muted);
+  background: transparent;
+  font-weight: 500;
+}

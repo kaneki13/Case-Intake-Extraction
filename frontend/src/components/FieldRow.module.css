@@ -1,0 +1,154 @@
+.item {
+  position: relative;
+}
+
+.row {
+  --marker: transparent;
+  position: relative;
+  display: grid;
+  /* The label column is a share of the row, not of what the badge leaves: values line up across rows. */
+  grid-template-columns: minmax(0, 40%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 36px;
+  padding: var(--s1) var(--s3) var(--s1) var(--s4);
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+/* A 3px marker on the leading edge: risky rows can be spotted while scrolling, before reading. */
+.row::before {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--marker);
+  content: '';
+}
+
+.row[data-tone='caution'] {
+  --marker: var(--caution);
+}
+
+.row[data-tone='risk'] {
+  --marker: var(--risk);
+}
+
+.row[data-tone='conflict'] {
+  --marker: var(--conflict);
+}
+
+.row[data-tone='edited'] {
+  --marker: var(--edited);
+}
+
+.row:hover {
+  background: var(--subtle);
+}
+
+.row:focus-visible {
+  outline-offset: -2px;
+}
+
+.item[data-selected] .row {
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--accent-tint);
+}
+
+.label {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--t13);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item[data-selected] .label {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.value {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--t14);
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.value[data-kind='unknown'],
+.value[data-kind='missing'] {
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.value[data-kind='empty'] {
+  color: var(--edited);
+  font-style: italic;
+  font-weight: 400;
+}
+
+/* A draft value: the edited colour, so it never reads as the model's. */
+.value[data-edited] {
+  color: var(--edited);
+}
+
+.chips {
+  display: flex;
+  gap: var(--s1);
+  overflow: hidden;
+}
+
+.chip {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: var(--t13);
+  font-weight: 500;
+  line-height: 18px;
+  text-overflow: ellipsis;
+}
+
+.value[data-edited] .chip {
+  border-color: color-mix(in srgb, var(--edited) 45%, transparent);
+}
+
+.model {
+  color: var(--muted);
+  font-size: var(--t13);
+  white-space: nowrap;
+}
+
+.value[data-kind='conflict'] {
+  color: var(--conflict);
+  font-weight: 600;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+  gap: 6px;
+}
+
+.warn {
+  color: var(--caution);
+  font-size: var(--t14);
+  line-height: 1;
+}

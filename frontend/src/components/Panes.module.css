@@ -1,0 +1,93 @@
+/*
+ * Each scroller is a containing block: absolutely positioned descendants (the visually-hidden text)
+ * then stay inside it. Otherwise they overflow the page itself, and scrollIntoView scrolls the whole
+ * app out from under the top bar.
+ */
+.main {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s8) var(--s8) 96px;
+  background: var(--bg);
+  overscroll-behavior: contain;
+}
+
+.main:focus {
+  outline: none;
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Only the bottom sheet has a handle. */
+.handle {
+  display: none;
+}
+
+@media (max-width: 959px) {
+  .main {
+    padding: var(--s6) var(--s4) var(--s8);
+  }
+
+  .aside {
+    grid-column: 1 / -1;
+    max-height: 55dvh;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    border-radius: var(--radius-l) var(--radius-l) 0 0;
+    box-shadow: var(--shadow-sheet);
+    transition: max-height var(--dur) var(--ease);
+  }
+
+  .aside[data-open='false'] {
+    max-height: 44px;
+  }
+
+  .aside[data-open='false'] .body {
+    visibility: hidden;
+  }
+
+  .handle {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s1);
+    flex: none;
+    height: 44px;
+    padding: 6px 0 0;
+    border: 0;
+    border-radius: var(--radius-l) var(--radius-l) 0 0;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: var(--t13);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .handle:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .grabber {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+  }
+}

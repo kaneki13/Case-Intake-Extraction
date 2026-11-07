@@ -1,0 +1,27 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--risk) 12%, transparent);
+  color: var(--risk);
+  font-size: var(--t13);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pill[data-none] {
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.glyph {
+  font-weight: 700;
+}
+
+.pill[data-none] .glyph {
+  color: var(--ok);
+}

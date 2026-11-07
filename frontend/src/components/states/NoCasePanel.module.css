@@ -1,0 +1,64 @@
+.eyebrow {
+  margin-bottom: var(--s2);
+  color: var(--muted);
+  font-size: var(--t13);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reason {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: var(--t14);
+  font-weight: 500;
+}
+
+.reason > svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.others {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: var(--s3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.raw {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 var(--s2);
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: var(--t13);
+}
+
+.missing {
+  padding: var(--s3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: var(--t13);
+  text-align: center;
+}

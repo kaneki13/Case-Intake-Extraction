@@ -1,4 +1,4 @@
-import type { FieldResult } from '../api/types'
+import type { FieldResult, Review, ReviewState } from '../api/types'
 import { confidenceRank } from './risk'
 
 /** A status colour token from tokens.css (`--ok`, `--caution`, ...). */
@@ -6,7 +6,7 @@ export type Tone = 'ok' | 'caution' | 'risk' | 'muted' | 'conflict' | 'edited'
 
 /** How one field state is shown: always an icon, a colour (tone) and a text, plus an accessible name. */
 export interface FieldState {
-  /** Summary filter key: `level:<name>`, `unknown`, `conflict` or `edited`. */
+  /** Summary filter key: `level:<name>`, `unknown`, `conflict`, or `review:<kind>` for a review state. */
   key: string
   tone: Tone
   /** One character, decorative (the text carries the meaning). */
@@ -38,9 +38,32 @@ export const unknownState = (): FieldState =>
   ({ key: 'unknown', tone: 'muted', icon: ICON.muted, text: 'unknown', name: 'Status: unknown' })
 export const conflictState = (): FieldState =>
   ({ key: 'conflict', tone: 'conflict', icon: ICON.conflict, text: 'conflict', name: 'Status: conflict' })
-/** A local draft differs from the model value (reachable once the inspector can edit). */
-export const editedState = (): FieldState =>
-  ({ key: 'edited', tone: 'edited', icon: ICON.edited, text: 'edited', name: 'Edited' })
+/** What a reviewer has done with a field; `unreviewed` until one of the three review states is stored. */
+export type ReviewKind = ReviewState | 'unreviewed'
+
+const REVIEW: Record<ReviewKind, { tone: Tone; icon: string; badge: string; chip: string }> = {
+  accepted: { tone: 'ok', icon: '✓', badge: 'Accepted', chip: 'Accepted' },
+  rejected: { tone: 'muted', icon: '⊘', badge: 'Rejected', chip: 'Rejected' },
+  edited: { tone: 'edited', icon: ICON.edited, badge: 'Manual edit', chip: 'Edited' },
+  unreviewed: { tone: 'muted', icon: '○', badge: 'Unreviewed', chip: 'Unreviewed' },
+}
+
+/** The review kinds in summary order. */
+export const REVIEW_KINDS: readonly ReviewKind[] = ['accepted', 'rejected', 'edited', 'unreviewed']
+
+/** The badge for a review: icon, colour and text ("Manual edit" for an edit). Key `review:<kind>`. */
+export function reviewState(kind: ReviewKind): FieldState {
+  const r = REVIEW[kind]
+  return { key: `review:${kind}`, tone: r.tone, icon: r.icon, text: r.badge, name: r.badge }
+}
+
+/** The summary chip for a review kind: same key, tone and icon as the badge, the chip's shorter word. */
+export function reviewChipState(kind: ReviewKind): FieldState {
+  const r = REVIEW[kind]
+  return { ...reviewState(kind), text: r.chip, name: r.chip }
+}
+
+export const reviewKindOf = (review: Review | null | undefined): ReviewKind => review?.state ?? 'unreviewed'
 
 /**
  * The state of a model result. A field absent from the output (undefined) is unknown; so is a status

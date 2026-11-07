@@ -19,6 +19,14 @@ Element.prototype.hasPointerCapture ??= function hasPointerCapture() {
 }
 Element.prototype.setPointerCapture ??= function setPointerCapture() {}
 Element.prototype.releasePointerCapture ??= function releasePointerCapture() {}
+// jsdom has <dialog> without its methods: open and close by the attribute, as a browser would.
+HTMLDialogElement.prototype.showModal ??= function showModal(this: HTMLDialogElement) {
+  this.setAttribute('open', '')
+}
+HTMLDialogElement.prototype.close ??= function close(this: HTMLDialogElement) {
+  this.removeAttribute('open')
+  this.dispatchEvent(new Event('close'))
+}
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 // globals are off, so Testing Library cannot register its own cleanup: unmount between tests.

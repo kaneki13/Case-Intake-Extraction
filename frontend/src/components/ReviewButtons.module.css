@@ -1,0 +1,57 @@
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.button {
+  --tone: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--t13);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.button svg {
+  color: var(--tone);
+}
+
+.button[data-action='accept'] {
+  --tone: var(--ok);
+}
+
+.button[data-action='reject'] {
+  --tone: var(--risk);
+}
+
+.button:hover {
+  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 8%, var(--surface));
+}
+
+/* The review already stored: the button reads as pressed. */
+.button[data-current] {
+  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 12%, var(--surface));
+}
+
+.button[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.group[data-variant='compact'] .button {
+  width: 28px;
+  padding: 0;
+}

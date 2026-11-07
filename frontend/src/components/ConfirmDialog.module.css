@@ -1,0 +1,60 @@
+.dialog {
+  width: min(420px, calc(100vw - 2 * var(--s4)));
+  padding: var(--s5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 16px 48px rgb(16 24 32 / 0.24);
+}
+
+.dialog::backdrop {
+  background: rgb(16 24 32 / 0.4);
+}
+
+.title {
+  margin: 0 0 var(--s2);
+  font-size: var(--t16);
+  font-weight: 600;
+}
+
+.body {
+  color: var(--muted);
+  font-size: var(--t14);
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin-top: var(--s5);
+}
+
+.button {
+  --tone: var(--accent);
+  min-height: 32px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--t13);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--tone);
+}
+
+.button[data-tone='danger'] {
+  --tone: var(--risk);
+  border-color: var(--risk);
+  background: var(--risk);
+  color: var(--on-accent);
+}
+
+.button[data-tone='danger']:hover {
+  background: color-mix(in srgb, var(--risk) 88%, black);
+}

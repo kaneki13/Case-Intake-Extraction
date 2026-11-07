@@ -11,6 +11,10 @@ export class ApiError extends Error {
   }
 }
 
+/** What to tell the reviewer about a failed request: the server's detail, else the error's message. */
+export const errorMessage = (error: unknown): string =>
+  error instanceof ApiError ? error.detail : error instanceof Error ? error.message : String(error)
+
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
 

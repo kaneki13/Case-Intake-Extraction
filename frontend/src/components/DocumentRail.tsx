@@ -3,6 +3,7 @@ import { useCatalog, useDocuments } from '../api/queries'
 import type { DocumentSummary } from '../api/types'
 import { riskCount } from '../lib/risk'
 import { FlagIcons } from './Flags'
+import { ProgressRing } from './ProgressRing'
 import { RiskPill, riskLabel } from './RiskPill'
 import { ErrorCard } from './states/ErrorCard'
 import { RailSkeleton } from './states/Skeletons'
@@ -31,6 +32,7 @@ function RailItem({ doc, levels }: { doc: DocumentSummary; levels: string[] }) {
             {caseText(doc.caseCount)}
           </span>
           <FlagIcons flags={doc.flags} />
+          <ProgressRing progress={doc.progress} className={styles.ring} />
         </span>
       </NavLink>
     </li>

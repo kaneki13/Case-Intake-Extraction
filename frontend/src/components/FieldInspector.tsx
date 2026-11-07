@@ -1,11 +1,13 @@
-import { useId, useMemo } from 'react'
-import type { CatalogField, FieldResult, Provenance } from '../api/types'
-import { sameValue, useDrafts, type DraftValue } from '../lib/drafts'
+import { useId, useMemo, useState, type FormEvent } from 'react'
+import { errorMessage } from '../api/client'
+import type { CatalogField, FieldResult, Provenance, Review } from '../api/types'
 import { buildCodePointIndex, toUtf16 } from '../lib/offsets'
 import { requestQuoteScroll } from '../lib/quoteScroll'
 import { conflictCandidates } from '../lib/status'
+import { sameValue, type EditValue } from '../lib/values'
 import { FieldControl } from './controls/FieldControl'
 import { Icon } from './Icon'
+import { ReviewButtons, type FieldAction } from './ReviewButtons'
 import styles from './FieldInspector.module.css'
 
 const OUTSIDE_DOCUMENT = 'Quote position outside document'
@@ -18,37 +20,73 @@ export interface FieldInspectorProps {
   field: CatalogField
   /** The model's result; undefined when the catalog field is absent from this output. */
   result: FieldResult | undefined
+  /** The stored review of this field, or null. */
+  review: Review | null
   /** The document text, for turning quote offsets (code points) into text positions; null without a text layer. */
   text: string | null
   /** This field's provenance spans that lie outside the document (from useQuoteModel().invalidByField). */
   invalid: { start: number; end: number }[]
-  /** This field's draft key (`draftKey(doc, case, field)`). */
-  draftKey: string
-  /** The model's value as the row shows it, repeated beside a draft. */
+  /** The model's value as the row shows it, repeated (struck through) beside a manual edit. */
   modelText: string
+  /** Saves `value` as a manual edit; rejects with the server's error, which the inspector shows inline. */
+  onSave: (value: EditValue) => Promise<unknown>
+  /** Accept, reject or reset this field. */
+  onReview: (action: FieldAction) => void
+  /** A review of this field is being saved. */
+  busy: boolean
+  /** Why the last accept, reject or reset of this field failed, or null. */
+  actionError: string | null
 }
 
 /**
- * The inline region under a selected row: the catalog-driven control (a local draft once edited),
- * every quote as a clickable excerpt, then the note or the conflict candidates.
+ * The inline region under a selected row: the catalog-driven control with Save (Enter inside the
+ * control saves too), the review buttons, every quote as a clickable excerpt, then the note or the
+ * conflict candidates.
  */
-export function FieldInspector({ id, field, result, text, invalid, draftKey, modelText }: FieldInspectorProps) {
+export function FieldInspector({
+  id, field, result, review, text, invalid, modelText, onSave, onReview, busy, actionError,
+}: FieldInspectorProps) {
   const fieldId = field.id
   const controlId = useId()
-  const drafts = useDrafts()
-  const edited = drafts.has(draftKey)
+  const errorId = useId()
+  const edited = review?.state === 'edited'
   // Unknown, conflicting and missing fields have no model value: the control starts empty.
   const modelValue = result?.status === 'extracted' ? result.value : null
-  const value = edited ? drafts.get(draftKey) : modelValue
-  const change = (next: DraftValue) => {
-    // Editing back to the model's value is no edit.
-    if (sameValue(field, next, modelValue)) drafts.reset(draftKey)
-    else drafts.set(draftKey, next)
+  // What the field holds now: the saved edit, else the model's value.
+  const current = edited ? review.value : modelValue
+
+  // The value in the control; it follows the saved value when that changes (a save, a reset).
+  const [value, setValue] = useState<unknown>(current)
+  const [seen, setSeen] = useState<unknown>(current)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  if (!sameValue(field, seen, current)) {
+    setSeen(current)
+    setValue(current)
+    setSaveError(null)
   }
-  const reset = () => {
-    // The reset button disappears with the draft: keep focus in the inspector, on the control.
-    document.getElementById(controlId)?.focus()
-    drafts.reset(draftKey)
+  const unchanged = sameValue(field, value, current)
+
+  const change = (next: EditValue) => {
+    setValue(next)
+    setSaveError(null)
+  }
+  const save = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    // A control holding text it cannot accept (it says why) keeps its last valid value: never save that.
+    const bad = event.currentTarget.querySelector<HTMLElement>('[aria-invalid="true"]')
+    if (bad) {
+      bad.focus()
+      return
+    }
+    if (unchanged || saving || busy) return
+    setSaving(true)
+    onSave(value as EditValue)
+      .catch((error: unknown) => {
+        setSaveError(errorMessage(error))
+        document.getElementById(controlId)?.focus()
+      })
+      .finally(() => setSaving(false))
   }
 
   const index = useMemo(() => (text === null ? null : buildCodePointIndex(text)), [text])
@@ -60,21 +98,41 @@ export function FieldInspector({ id, field, result, text, invalid, draftKey, mod
     <div id={id} role="region" aria-label="Field details" className={styles.inspector}>
       <div className={styles.editor} data-edited={edited || undefined}>
         {edited && (
-          <div className={styles.draftBar}>
-            <p role="status" className={styles.draftNote}>
-              <span aria-hidden="true" className={styles.draftIcon}>✎</span>
-              Edits are not saved yet
-            </p>
-            <button type="button" className={styles.reset} onClick={reset}>
-              <Icon name="undo" size={14} />
-              Reset to model value
-            </button>
-          </div>
+          <p className={styles.editNote}>
+            <span aria-hidden="true" className={styles.editIcon}>✎</span>
+            <span className={styles.editLabel}>Manual edit</span>
+            <span className={styles.modelValue}>
+              Model value: <s>{modelText}</s>
+            </span>
+          </p>
         )}
-        <FieldControl id={controlId} field={field} value={value} onChange={change} />
-        {edited && (
-          <p className={styles.modelValue}>
-            Model value: <span>{modelText}</span>
+        {/* noValidate: the controls show their own messages, and the save handler refuses invalid input. */}
+        <form className={styles.form} noValidate onSubmit={save} aria-describedby={saveError ? errorId : undefined}>
+          <FieldControl id={controlId} field={field} value={value} onChange={change} />
+          {saveError && (
+            <p id={errorId} role="alert" className={styles.saveError}>
+              <span aria-hidden="true">! </span>
+              Not saved: {saveError}
+            </p>
+          )}
+          <div className={styles.formActions}>
+            <button
+              type="submit"
+              className={styles.save}
+              disabled={unchanged}
+              aria-disabled={saving || busy || undefined}
+            >
+              <Icon name="check" size={14} />
+              Save
+            </button>
+            <span className={styles.hint}>{unchanged ? 'Change the value to save an edit' : 'Enter saves'}</span>
+          </div>
+        </form>
+        <ReviewButtons variant="full" label="Review this field" review={review} busy={busy || saving} onAction={onReview} />
+        {actionError && (
+          <p role="alert" className={styles.saveError}>
+            <span aria-hidden="true">! </span>
+            Review not saved: {actionError}
           </p>
         )}
       </div>

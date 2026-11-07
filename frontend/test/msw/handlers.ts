@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { CatalogField, MergedField, Review, Reviews } from '../../src/api/types'
+import type { CatalogField, DocumentDetail, MergedField, Review, Reviews } from '../../src/api/types'
 import { catalogFixture, documentFixtures, duplicateDocFixtures, duplicateFixtures, summaryFixtures } from '../fixtures'
 
 export const problem = (status: number, detail: string) =>
@@ -11,18 +11,30 @@ export const problem = (status: number, detail: string) =>
 const allDocs = [...documentFixtures, ...duplicateDocFixtures]
 const fieldOf = (id: string): CatalogField | undefined => catalogFixture.fields.find((f) => f.id === id)
 
-/** In-memory review store: docId -> caseIndex -> fieldId -> review. Reset after every test. */
+/** In-memory review store: docId -> caseIndex -> fieldId -> review. Reset after every test. Never holds empty maps. */
 let store = new Map<string, Reviews>()
 export const resetReviews = () => { store = new Map() }
-const reviewsOf = (docId: string): Reviews => {
-  let r = store.get(docId)
-  if (!r) { r = {}; store.set(docId, r) }
-  return r
+/** The stored reviews of a document, read-only: nothing is created for an unreviewed document. */
+const reviewsOf = (docId: string): Reviews => store.get(docId) ?? {}
+/** Change one case's reviews; empty case maps and empty documents are dropped, as on the server. */
+function updateCase(docId: string, caseIndex: number, change: (forCase: Record<string, Review>) => void) {
+  const doc: Reviews = { ...reviewsOf(docId) }
+  const key = String(caseIndex)
+  const forCase = { ...(doc[key] ?? {}) }
+  change(forCase)
+  if (Object.keys(forCase).length > 0) doc[key] = forCase
+  else delete doc[key]
+  if (Object.keys(doc).length > 0) store.set(docId, doc)
+  else store.delete(docId)
 }
 const progressOf = (docId: string, caseCount: number) => ({
   reviewed: Object.values(reviewsOf(docId)).reduce((n, c) => n + Object.keys(c).length, 0),
   total: caseCount * catalogFixture.fields.length,
 })
+
+/** A document as GET /api/documents/:id serves it: with the stored reviews and progress. For per-test overrides. */
+export const served = (doc: DocumentDetail): DocumentDetail =>
+  ({ ...doc, reviews: reviewsOf(doc.id), progress: progressOf(doc.id, doc.extraction.cases.length) })
 
 /** Simple catalog-type check standing in for the backend validator. */
 function invalidEdit(field: CatalogField, value: unknown): string | null {
@@ -55,13 +67,14 @@ function merged(docId: string, caseIndex: number, fieldId: string): MergedField 
 }
 
 type Located = { docId: string; caseIndex: number } | Response
-function locate(params: Record<string, unknown>): Located {
-  const docId = String(params.id)
-  const doc = allDocs.find((d) => d.id === docId)
+const findDoc = (id: unknown) => allDocs.find((d) => d.id === String(id))
+/** The case of a located document (backend order: the document, then the action, then the case). */
+function locateCase(docId: string, rawIndex: unknown): Located {
+  const doc = findDoc(docId)
   if (!doc) return problem(404, `Document ${docId} not found`)
-  const caseIndex = Number(params.caseIndex)
+  const caseIndex = Number(rawIndex)
   if (!Number.isInteger(caseIndex)) return problem(400, 'caseIndex must be an integer')
-  if (caseIndex < 0 || caseIndex >= doc.extraction.cases.length) return problem(404, `Case ${caseIndex} not found`)
+  if (caseIndex < 0 || caseIndex >= doc.extraction.cases.length) return problem(404, `Document ${docId} has no case ${caseIndex}`)
   return { docId, caseIndex }
 }
 
@@ -73,53 +86,59 @@ export const handlers = [
     HttpResponse.json(summaryFixtures.map((s) => ({ ...s, progress: progressOf(s.id, s.caseCount) })))),
   http.get('*/api/duplicates', () => HttpResponse.json(duplicateFixtures)),
   http.get('*/api/documents/:id', ({ params }) => {
-    const doc = allDocs.find((d) => d.id === params.id)
-    return doc
-      ? HttpResponse.json({ ...doc, reviews: reviewsOf(doc.id), progress: progressOf(doc.id, doc.extraction.cases.length) })
-      : problem(404, `Document ${String(params.id)} not found`)
+    const doc = findDoc(params.id)
+    return doc ? HttpResponse.json(served(doc)) : problem(404, `Document ${String(params.id)} not found`)
   }),
+  // Same order as ReviewService.apply: document 404, action/value 400, case 404, field 404, edit value 400.
   http.patch('*/api/documents/:id/cases/:caseIndex/fields/:fieldId', async ({ params, request }) => {
+    const docId = String(params.id)
+    if (!findDoc(docId)) return problem(404, `Document ${docId} not found`)
     const body = (await request.json()) as { action?: string; value?: unknown }
     const { action } = body
     if (action !== 'accept' && action !== 'reject' && action !== 'edit' && action !== 'reset') {
       return problem(400, `Unknown action ${String(action)}`)
     }
-    const hasValue = 'value' in body
-    if (action === 'edit' && !hasValue) return problem(400, 'edit requires a value')
-    if (action !== 'edit' && hasValue) return problem(400, `${action} takes no value`)
-    const loc = locate(params)
+    // As on the server, a JSON null is no value.
+    const hasValue = body.value !== undefined && body.value !== null
+    if (action === 'edit' && !hasValue) return problem(400, 'An edit needs a value')
+    if (action !== 'edit' && hasValue) return problem(400, 'A value is only allowed with action edit')
+    const loc = locateCase(docId, params.caseIndex)
     if (loc instanceof Response) return loc
     const fieldId = String(params.fieldId)
     const field = fieldOf(fieldId)
-    if (!field) return problem(404, `Unknown field ${fieldId}`)
-    const cases = reviewsOf(loc.docId)
-    const key = String(loc.caseIndex)
+    if (!field) return problem(404, `No catalog field with id ${fieldId}`)
     if (action === 'edit') {
       const msg = invalidEdit(field, body.value)
       if (msg) return problem(400, msg)
     }
-    const forCase = (cases[key] ??= {})
-    if (action === 'reset') delete forCase[fieldId]
-    else {
-      const review: Review = action === 'edit'
-        ? { state: 'edited', value: body.value, at: now() }
-        : { state: action === 'accept' ? 'accepted' : 'rejected', at: now() }
-      forCase[fieldId] = review
-    }
+    updateCase(loc.docId, loc.caseIndex, (forCase) => {
+      if (action === 'reset') delete forCase[fieldId]
+      else {
+        forCase[fieldId] = action === 'edit'
+          ? { state: 'edited', value: body.value, at: now() }
+          : { state: action === 'accept' ? 'accepted' : 'rejected', at: now() }
+      }
+    })
     return HttpResponse.json(merged(loc.docId, loc.caseIndex, fieldId))
   }),
+  // Same order as ReviewService.applyBulk: document 404, action 400, case 404, field ids 404.
   http.patch('*/api/documents/:id/cases/:caseIndex/fields', async ({ params, request }) => {
+    const docId = String(params.id)
+    if (!findDoc(docId)) return problem(404, `Document ${docId} not found`)
     const body = (await request.json()) as { action?: string; fieldIds?: string[] }
     if (body.action !== 'accept' && body.action !== 'reject') return problem(400, `Unknown action ${String(body.action)}`)
-    const loc = locate(params)
+    const loc = locateCase(docId, params.caseIndex)
     if (loc instanceof Response) return loc
     const unknown = body.fieldIds?.find((id) => !fieldOf(id))
-    if (unknown !== undefined) return problem(404, `Unknown field ${unknown}`)
-    const forCase = (reviewsOf(loc.docId)[String(loc.caseIndex)] ??= {})
+    if (unknown !== undefined) return problem(404, `No catalog field with id ${unknown}`)
+    const reviewed = reviewsOf(loc.docId)[String(loc.caseIndex)] ?? {}
     const targets = catalogFixture.fields
       .map((f) => f.id)
-      .filter((id) => (body.fieldIds === undefined || body.fieldIds.includes(id)) && !(id in forCase))
-    for (const id of targets) forCase[id] = { state: body.action === 'accept' ? 'accepted' : 'rejected', at: now() }
+      .filter((id) => (body.fieldIds === undefined || body.fieldIds.includes(id)) && !(id in reviewed))
+    const state = body.action === 'accept' ? 'accepted' : 'rejected'
+    updateCase(loc.docId, loc.caseIndex, (forCase) => {
+      for (const id of targets) forCase[id] = { state, at: now() }
+    })
     return HttpResponse.json(targets.map((id) => merged(loc.docId, loc.caseIndex, id)))
   }),
 ]

@@ -156,7 +156,8 @@ describe('field keyboard', () => {
     const inspector = document.getElementById(row.getAttribute('aria-controls') ?? '') as HTMLElement
     const input = within(inspector).getByLabelText(text.label)
     await user.click(input)
-    await user.keyboard('jk{ArrowDown}{Escape}{Enter}')
+    // (Enter inside an editor saves the field since reviews are stored: review.test.tsx covers it.)
+    await user.keyboard('jk{ArrowDown}{Escape}')
     expect(field()).toBe(text.id)
     expect((input as HTMLInputElement).value).toMatch(/jk$/)
   })

@@ -17,6 +17,13 @@
   gap: var(--s3);
 }
 
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

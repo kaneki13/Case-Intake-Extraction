@@ -2,12 +2,17 @@ import { createElement, type ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useDocument, useDocuments, useDuplicates } from '../src/api/queries'
 import { useBulkReview, useReviewField } from '../src/api/reviews'
 import type { CatalogField } from '../src/api/types'
 import { catalogFixture, duplicateFixtures } from './fixtures'
 import { server } from './msw/server'
+
+// Listeners added by capture() go even when a test fails half-way.
+afterEach(() => {
+  server.events.removeAllListeners()
+})
 
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
@@ -36,7 +41,6 @@ describe('review mutations', () => {
       edited = await result.current.mutateAsync({ caseIndex: 0, fieldId: intField.id, action: 'edit', value: 40 })
       await result.current.mutateAsync({ caseIndex: 0, fieldId: f0 as string, action: 'accept' })
     })
-    server.events.removeAllListeners()
     expect(seen[0]).toEqual({ url: `/api/documents/D01/cases/0/fields/${intField.id}`, body: { action: 'edit', value: 40 } })
     expect(seen[1]?.body).toEqual({ action: 'accept' })
     expect(edited).toMatchObject({ fieldId: intField.id, review: { state: 'edited', value: 40 } })
@@ -52,7 +56,6 @@ describe('review mutations', () => {
       some = await result.current.mutateAsync({ caseIndex: 0, action: 'accept', fieldIds: [f0 as string, f1 as string] })
       rest = await result.current.mutateAsync({ caseIndex: 0, action: 'reject' })
     })
-    server.events.removeAllListeners()
     expect(seen[0]).toEqual({ url: '/api/documents/D01/cases/0/fields', body: { action: 'accept', fieldIds: [f0, f1] } })
     expect(seen[1]?.body).toEqual({ action: 'reject' })
     expect(some).toHaveLength(2)
@@ -101,6 +104,30 @@ describe('review mutations', () => {
     let ids: unknown[] = []
     await act(async () => { ids = await result.current.bulk.mutateAsync({ caseIndex: 0, action: 'accept' }) })
     expect(ids).toEqual(['a/b c'])
+  })
+})
+
+describe('mock review store', () => {
+  const patch = (path: string, body: unknown) =>
+    fetch(new URL(path, location.href), { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+
+  it('resolvesTheDocumentBeforeTheAction', async () => {
+    expect((await patch(`/api/documents/NOPE/cases/0/fields/${f0 as string}`, { action: 'bogus' })).status).toBe(404)
+    expect((await patch('/api/documents/NOPE/cases/0/fields', { action: 'bogus' })).status).toBe(404)
+    expect((await patch(`/api/documents/D01/cases/0/fields/${f0 as string}`, { action: 'bogus' })).status).toBe(400)
+    // A JSON null is no value, as on the server.
+    expect((await patch(`/api/documents/D01/cases/0/fields/${f0 as string}`, { action: 'edit', value: null })).status).toBe(400)
+  })
+
+  it('keepsNoEmptyCaseMaps', async () => {
+    const reviews = async () => ((await (await fetch(new URL('/api/documents/MP1', location.href))).json()) as { reviews: unknown }).reviews
+    await patch(`/api/documents/MP1/cases/1/fields/${f0 as string}`, { action: 'accept' })
+    expect(Object.keys((await reviews()) as object)).toEqual(['1'])
+    await patch(`/api/documents/MP1/cases/1/fields/${f0 as string}`, { action: 'reset' })
+    expect(await reviews()).toEqual({})
+    // A bulk action that changes nothing (every listed field reviewed or none listed) creates nothing.
+    await patch('/api/documents/MP1/cases/0/fields', { action: 'accept', fieldIds: [] })
+    expect(await reviews()).toEqual({})
   })
 })
 

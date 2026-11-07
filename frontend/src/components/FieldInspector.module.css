@@ -121,7 +121,7 @@ button.excerpt:hover {
   }
 }
 
-/* The control, with the draft bar above it while a local edit exists. */
+/* The control with Save, a manual-edit note above it once an edit is saved, then the review buttons. */
 .editor {
   display: flex;
   flex-direction: column;
@@ -130,57 +130,86 @@ button.excerpt:hover {
   border-bottom: 1px solid var(--border);
 }
 
-.draftBar {
+.editNote {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s2);
-  padding: var(--s1) var(--s1) var(--s1) var(--s2);
+  align-items: baseline;
+  gap: 6px;
+  padding: var(--s1) var(--s2);
   border: 1px solid color-mix(in srgb, var(--edited) 45%, transparent);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--edited) 8%, var(--surface));
+  font-size: var(--t13);
 }
 
-.draftNote {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.editIcon,
+.editLabel {
   color: var(--edited);
-  font-size: var(--t13);
   font-weight: 600;
-}
-
-.draftIcon {
-  font-size: var(--t13);
-}
-
-.reset {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 var(--s2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
-  font-size: var(--t13);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.reset:hover {
-  border-color: var(--edited);
 }
 
 .modelValue {
   color: var(--muted);
+}
+
+.modelValue s {
+  color: var(--muted);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--edited);
+  border-radius: var(--radius);
+  background: var(--edited);
+  color: var(--on-accent);
+  font-size: var(--t13);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--edited) 88%, var(--text));
+}
+
+.save:disabled {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: default;
+}
+
+.save[aria-disabled='true'] {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.hint {
+  color: var(--muted);
   font-size: var(--t13);
 }
 
-.modelValue span {
-  color: var(--text);
+.saveError {
+  color: var(--risk);
+  font-size: var(--t13);
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 @media (prefers-reduced-motion: reduce) {

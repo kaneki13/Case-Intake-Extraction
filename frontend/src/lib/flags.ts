@@ -12,7 +12,8 @@ export interface FlagInfo {
 const KNOWN: Record<string, FlagInfo> = {
   no_adverse_event: { label: 'No adverse event reported', icon: 'ban', tone: 'neutral' },
   missing_minimum_elements: { label: 'Minimum case elements missing', icon: 'listX', tone: 'neutral' },
-  unsupported_format: { label: 'Image-only PDF — not processed', icon: 'fileX', tone: 'neutral' },
+  unsupported_format: { label: 'Not processed — unsupported format', icon: 'fileX', tone: 'neutral' },
+  transcribed_from_image: { label: 'Transcribed from image — verify against the PDF', icon: 'fileText', tone: 'caution' },
   multiple_patients: { label: 'Multiple patients', icon: 'users', tone: 'neutral' },
   embedded_instructions_ignored: { label: 'Embedded instructions ignored', icon: 'shield', tone: 'caution' },
   possible_duplicate: { label: 'Possible duplicate', icon: 'copy', tone: 'caution' },

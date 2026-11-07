@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import type { CatalogField } from '../../api/types'
-import type { DraftValue } from '../../lib/drafts'
+import type { EditValue } from '../../lib/values'
 import { CodedMultiSelect } from './CodedMultiSelect'
 import { CodedSelect } from './CodedSelect'
 import { DateControl } from './DateControl'
@@ -13,9 +13,9 @@ interface Props {
   /** DOM id of the labelled control element. */
   id: string
   field: CatalogField
-  /** The draft, or the model's value when there is none; null or undefined when there is no value. */
+  /** The value being edited (starts as the current value); null or undefined when there is no value. */
   value: unknown
-  onChange: (value: DraftValue) => void
+  onChange: (value: EditValue) => void
 }
 
 /** A value the control can show, plus the reason when the incoming value did not fit it. */

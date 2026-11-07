@@ -49,7 +49,7 @@ describe('DocumentRail', () => {
     expect(within(link('NC1')).getByText('No case')).toBeInTheDocument()
     expect(within(link('NC1')).getByRole('img', { name: 'No adverse event reported' })).toBeInTheDocument()
     expect(within(link('NC1')).getByRole('img', { name: 'No risky values' })).toBeInTheDocument()
-    expect(within(link('PDF1')).getByRole('img', { name: 'Image-only PDF — not processed' })).toBeInTheDocument()
+    expect(within(link('PDF1')).getByRole('img', { name: 'Not processed — unsupported format' })).toBeInTheDocument()
 
     // Titles are one line; the full title is kept for the tooltip.
     expect(within(link('MP1')).getByTitle('MP1')).toBeInTheDocument()
@@ -224,10 +224,10 @@ describe('states', () => {
     renderApp('/documents/PDF1')
     const main = panes.document()
     expect(await within(main).findByRole('heading', { name: 'No text layer' })).toBeInTheDocument()
-    expect(within(main).getByText('Image-only PDF — not processed')).toBeInTheDocument()
+    expect(within(main).getByText('Not processed — unsupported format')).toBeInTheDocument()
     expect(within(main).queryByRole('article', { name: 'Document text' })).not.toBeInTheDocument()
     const fields = panes.fields()
-    expect(await within(fields).findByText('Image-only PDF — not processed')).toBeInTheDocument()
+    expect(await within(fields).findByText('Not processed — unsupported format')).toBeInTheDocument()
   })
 })
 

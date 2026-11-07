@@ -1,0 +1,41 @@
+.ring {
+  --tone: var(--accent);
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
+.ring[data-done] {
+  --tone: var(--ok);
+}
+
+.track {
+  stroke: var(--border);
+}
+
+.value {
+  stroke: var(--tone);
+  transition: stroke-dashoffset var(--dur) var(--ease);
+}
+
+/* Done: a check inside the closed ring, so completion is not colour alone. */
+.check {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--tone);
+  font-size: var(--t13);
+  font-weight: 700;
+  line-height: 1;
+  transform: scale(0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .value {
+    transition: none;
+  }
+}

@@ -3,6 +3,7 @@ import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { resetReviews } from './test/msw/handlers'
 import { server } from './test/msw/server'
+import { clearTestQueryClients } from './test/queryClients'
 
 // Minimal shims for browser APIs jsdom lacks, so Radix Select/Popover and the text's scroll can run.
 // Each is a no-op; tests that assert on scrolling still install their own spy over scrollIntoView.
@@ -32,6 +33,8 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 // globals are off, so Testing Library cannot register its own cleanup: unmount between tests.
 afterEach(() => {
   cleanup()
+  // Unmounting leaves the clients' queries (and any request in flight) behind: clear them before the next test.
+  clearTestQueryClients()
   server.resetHandlers()
   resetReviews()
 })

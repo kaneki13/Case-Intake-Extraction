@@ -92,7 +92,7 @@ export function DuplicatesPage() {
   const duplicates = useDuplicates()
   const documents = useDocuments()
   const titles = new Map((documents.data ?? []).map((d: DocumentSummary) => [d.id, d.title]))
-  const groups = duplicates.data
+  const groups = duplicates.data?.groups
 
   let body
   if (duplicates.isError) {

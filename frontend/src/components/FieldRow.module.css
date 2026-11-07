@@ -94,11 +94,6 @@
   font-weight: 400;
 }
 
-.value[data-kind='empty'] {
-  font-style: italic;
-  font-weight: 400;
-}
-
 /* The value column: one value, or a manual edit with the model's value beneath it. */
 .cell {
   display: flex;

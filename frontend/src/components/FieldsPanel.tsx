@@ -13,6 +13,7 @@ import { REVIEW_KINDS, conflictState, levelState, reviewChipState, unknownState 
 import type { EditValue } from '../lib/values'
 import { BulkReviewBar } from './BulkReviewBar'
 import { CaseTabs } from './CaseTabs'
+import { ConfirmDialog } from './ConfirmDialog'
 import { keyStart } from './controls/FieldControl'
 import type { EditStart } from './controls/types'
 import { FieldInspector } from './FieldInspector'
@@ -114,7 +115,6 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
     () => REVIEW_KINDS.map((kind) => ({ state: reviewChipState(kind), count: allRows.filter((r) => r.reviewKind === kind).length })),
     [allRows],
   )
-  const unreviewed = allRows.filter((r) => r.reviewKind === 'unreviewed').length
 
   // Model-state chips combine with "or", review chips with "or", and the two groups with "and".
   const activeModel = [...active].filter((k) => !k.startsWith('review:'))
@@ -128,6 +128,10 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
   // The keyboard's path: visible rows of this case, in display order.
   const order = allRows.filter(visible).map((r) => r.field.id)
   const shown = order.length
+  // Bulk actions: under any filter, the shown unreviewed fields only (sent as fieldIds); otherwise the whole case.
+  const filtered = active.size > 0 || riskyOnly
+  const bulkTargets = allRows.filter((r) => r.reviewKind === 'unreviewed' && (!filtered || visible(r))).map((r) => r.field.id)
+  const unreviewed = bulkTargets.length
 
   // After a review the selection moves on to the next unreviewed visible field (wrapping round once).
   const latest = useRef({ selectedFieldId, allRows, caseIndex: shownIndex })
@@ -152,10 +156,12 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
   const [actionError, setActionError] = useState<{ fieldId: string; message: string } | null>(null)
   const [bulkError, setBulkError] = useState<string | null>(null)
   const [confirmingReject, setConfirmingReject] = useState(false)
+  // Reject on an edited field discards the edit: it is asked first (the field id waiting for an answer).
+  const [discarding, setDiscarding] = useState<string | null>(null)
   // One review at a time: a field action and a bulk action never overlap.
   const busy = reviewField.isPending || bulk.isPending
 
-  const reviewOne = (fieldId: string, action: FieldAction) => {
+  const send = (fieldId: string, action: FieldAction) => {
     if (busy) return
     const path = order
     const fromCase = shownIndex
@@ -170,6 +176,14 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
       },
     )
   }
+  // Accept on an edited field confirms the edit (the server keeps it); reject asks before discarding it.
+  const reviewOne = (fieldId: string, action: FieldAction) => {
+    if (busy) return
+    const row = allRows.find((r) => r.field.id === fieldId)
+    if (action === 'reject' && row?.reviewKind === 'edited') setDiscarding(fieldId)
+    else send(fieldId, action)
+  }
+  const discardRow = discarding === null ? undefined : allRows.find((r) => r.field.id === discarding)
   const saveEdit = (fieldId: string, value: EditValue) => {
     const path = order
     const fromCase = shownIndex
@@ -182,7 +196,7 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
     if (busy) return
     setBulkError(null)
     bulk.mutate(
-      { caseIndex: shownIndex, action },
+      filtered ? { caseIndex: shownIndex, action, fieldIds: bulkTargets } : { caseIndex: shownIndex, action },
       { onError: (error) => setBulkError(`Couldn't ${action} all: ${errorMessage(error)}`) },
     )
   }
@@ -262,6 +276,7 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
           <ProgressBar progress={doc.progress} label="Document review progress" />
           <BulkReviewBar
             unreviewed={unreviewed}
+            shownOnly={filtered}
             caseName={caseName}
             onBulk={bulkReview}
             confirming={confirmingReject}
@@ -342,6 +357,25 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
             </SectionGroup>
           )
         })}
+        <ConfirmDialog
+          open={discardRow !== undefined}
+          title="Discard manual edit?"
+          confirmText="Discard edit and reject"
+          tone="danger"
+          onCancel={() => setDiscarding(null)}
+          onConfirm={() => {
+            const id = discarding
+            setDiscarding(null)
+            if (id !== null) send(id, 'reject')
+          }}
+        >
+          {discardRow && (
+            <p>
+              {discardRow.field.label} has a manual edit: “{discardRow.edited?.text ?? ''}”. Rejecting it discards
+              the edit and rejects the model value. Reset undoes the rejection, but not the edit.
+            </p>
+          )}
+        </ConfirmDialog>
         {model.uncatalogued.length > 0 && (
           <p role="note" className={styles.warning}>
             <span aria-hidden="true">⚠ </span>

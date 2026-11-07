@@ -42,3 +42,5 @@ export interface DuplicatePair { a: DuplicateCaseRef; b: DuplicateCaseRef; agree
 export interface DuplicateGroup {
   documentIds: string[]; confidence: 'high' | 'medium' | 'low'; reason: string; pairs: DuplicatePair[];
 }
+/** GET /api/duplicates: the detector's `duplicates.integer-tolerance` (the UI compares with it) and the groups. */
+export interface DuplicatesResponse { integerTolerance: number; groups: DuplicateGroup[] }

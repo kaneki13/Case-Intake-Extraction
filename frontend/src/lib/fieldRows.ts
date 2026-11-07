@@ -8,8 +8,7 @@ import { resultProblems, reviewKindOf, stateOf, type FieldState, type ReviewKind
 export type RowValue =
   /** `items` is set for list types (coded_multi labels, string_list items): the row shows them as chips. */
   | { kind: 'value'; text: string; title: string; items?: string[] }
-  /** `empty`: an edit that cleared the value. */
-  | { kind: 'unknown' | 'conflict' | 'missing' | 'empty'; text: string }
+  | { kind: 'unknown' | 'conflict' | 'missing'; text: string }
 
 export interface FieldRowModel {
   field: CatalogField
@@ -44,7 +43,6 @@ export interface CaseRows {
 
 export const NOT_STATED = 'Not stated'
 export const NOT_IN_OUTPUT = 'Not in this output'
-export const NO_VALUE = 'No value'
 const OTHER_SECTION = 'Other fields'
 
 function valueOf(field: CatalogField, result: FieldResult | undefined): RowValue {
@@ -67,15 +65,15 @@ function displayOf(field: CatalogField, value: unknown): RowValue {
   return { kind: 'value', text, title }
 }
 
-/** The row with its stored review (or none): an edit adds the reviewer's value, the model value stays. */
+/**
+ * The row with its stored review (or none): an edit adds the reviewer's value, the model value stays.
+ * An edit always has a value: the server rejects an edit without one (400), so there is no "cleared" display.
+ */
 export function withReview(row: FieldRowModel, review: Review | undefined): FieldRowModel {
   if (!review) return row.review === null ? row : { ...row, review: null, reviewKind: 'unreviewed', edited: undefined }
   const reviewKind = reviewKindOf(review)
   if (reviewKind !== 'edited') return { ...row, review, reviewKind, edited: undefined }
-  const edited: RowValue = review.value === null || review.value === undefined
-    ? { kind: 'empty', text: NO_VALUE }
-    : displayOf(row.field, review.value)
-  return { ...row, review, reviewKind, edited }
+  return { ...row, review, reviewKind, edited: displayOf(row.field, review.value) }
 }
 
 /**

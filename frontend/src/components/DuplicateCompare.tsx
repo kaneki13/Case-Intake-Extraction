@@ -13,20 +13,23 @@ import { DocumentSkeleton, FieldsSkeleton } from './states/Skeletons'
 import tabStyles from './CaseTabs.module.css'
 import styles from './DuplicateCompare.module.css'
 
-/** How each state is shown: icon + colour (comparisonClass) + text. */
+/** How each state is shown: icon + colour (comparisonClass) + a visible word. */
 const SHOWN: Record<Comparison, { icon: string; text: string }> = {
   match: { icon: '✓', text: 'Match' },
   differ: { icon: '✗', text: 'Differ' },
   'one-sided': { icon: '◌', text: 'One side only' },
-  'both-absent': { icon: '·', text: 'Neither' },
+  'both-absent': { icon: '—', text: 'Neither' },
 }
 
 interface CompareRow { field: CatalogField; a: RowValue; b: RowValue; state: Comparison }
 interface CompareSection { id: string; label: string; rows: CompareRow[] }
 type Comparing = { ok: true; sections: CompareSection[]; counts: Record<Comparison, number> } | { ok: false; error: string }
 
-/** Both cases' rows (catalog sections and order, formatted values) with each field's comparison. */
-function compareCases(catalog: Catalog, a: CaseOutput, b: CaseOutput): Comparing {
+/**
+ * Both cases' rows (catalog sections and order, formatted values) with each field's comparison, using the
+ * server's integer tolerance.
+ */
+function compareCases(catalog: Catalog, a: CaseOutput, b: CaseOutput, integerTolerance: number): Comparing {
   try {
     const rowsB = new Map(buildCaseRows(catalog, b).sections.flatMap((s) => s.rows).map((r) => [r.field.id, r]))
     const counts = Object.fromEntries(COMPARISONS.map((c) => [c, 0])) as Record<Comparison, number>
@@ -36,7 +39,7 @@ function compareCases(catalog: Catalog, a: CaseOutput, b: CaseOutput): Comparing
       rows: s.rows.map((ra): CompareRow => {
         const rb = rowsB.get(ra.field.id)
         if (!rb) throw new Error(`field ${ra.field.label} has a row in one case only`)
-        const state = compareFieldValues(ra.field, ra.result, rb.result)
+        const state = compareFieldValues(ra.field, ra.result, rb.result, integerTolerance)
         counts[state]++
         return { field: ra.field, a: ra.value, b: rb.value, state }
       }),
@@ -124,22 +127,28 @@ function ComparisonTable({ pair, comparing, fieldId, revealKey, onToggle }: Tabl
           {section.rows.map(({ field, a, b, state }) => {
             const selected = field.id === fieldId
             return (
+              // The row's click selects the field, wherever it lands (a label click bubbles here too, so it
+              // counts once). The label button keeps the row reachable from the keyboard: its Enter and Space
+              // clicks reach the same handler.
               <tr
                 key={field.id}
                 ref={selected ? selectedRow : undefined}
                 className={`${styles.row} ${comparisonClass(state)}`}
                 data-state={state}
                 data-selected={selected || undefined}
+                onClick={() => onToggle(field.id)}
               >
                 <th scope="row" className={styles.label}>
-                  <button type="button" className={styles.rowButton} aria-pressed={selected} onClick={() => onToggle(field.id)}>
+                  <button type="button" className={styles.rowButton} aria-pressed={selected}>
                     {field.label}
                   </button>
                 </th>
                 <td className={styles.cell}><Value value={a} /></td>
                 <td className={styles.stateCell}>
-                  <span aria-hidden="true" className={styles.icon}>{SHOWN[state].icon}</span>
-                  <span className="visually-hidden">{SHOWN[state].text}</span>
+                  <span className={styles.state}>
+                    <span aria-hidden="true" className={styles.icon}>{SHOWN[state].icon}</span>
+                    <span className={styles.stateText}>{SHOWN[state].text}</span>
+                  </span>
                 </td>
                 <td className={styles.cell}><Value value={b} /></td>
               </tr>
@@ -175,15 +184,15 @@ function ComparePane({ side, docId, caseIndex, fieldId, onSelect }: {
 }
 
 /** The catalog, both documents and, once all are in, the comparison of the pair's two cases. */
-function usePairComparison(pair: DuplicatePair) {
+function usePairComparison(pair: DuplicatePair, integerTolerance: number) {
   const catalog = useCatalog()
   const docA = useDocument(pair.a.id)
   const docB = useDocument(pair.b.id)
   const caseA = docA.data?.extraction.cases[pair.a.caseIndex]
   const caseB = docB.data?.extraction.cases[pair.b.caseIndex]
   const comparing = useMemo(
-    () => (catalog.data && caseA && caseB ? compareCases(catalog.data, caseA, caseB) : null),
-    [catalog.data, caseA, caseB],
+    () => (catalog.data && caseA && caseB ? compareCases(catalog.data, caseA, caseB, integerTolerance) : null),
+    [catalog.data, caseA, caseB, integerTolerance],
   )
   const failed = comparing && !comparing.ok ? comparing.error : null
   useEffect(() => {
@@ -245,12 +254,13 @@ function Legend() {
 const pairName = (pair: DuplicatePair) => joinIds([pair.a.id, pair.b.id])
 
 /** The three columns for one pair, and the header line that summarises it. */
-function PairView({ group, index, pair, pairIndex, onPair }: {
+function PairView({ group, index, pair, pairIndex, onPair, integerTolerance }: {
   group: DuplicateGroup; index: number; pair: DuplicatePair; pairIndex: number; onPair: (i: number) => void
+  integerTolerance: number
 }) {
   const [params, setParams] = useSearchParams()
   const fieldId = params.get('field') || null
-  const comparison = usePairComparison(pair)
+  const comparison = usePairComparison(pair, integerTolerance)
   // Bumped when a quote selects a field: the table brings that row into view (a row click needs nothing).
   // A link that arrives with a field selected reveals its row once too.
   const [revealKey, setRevealKey] = useState(() => (fieldId === null ? 0 : 1))
@@ -349,7 +359,7 @@ export function DuplicateCompare() {
   const { index: rawIndex } = useParams()
   const [params, setParams] = useSearchParams()
   const duplicates = useDuplicates()
-  const groups = duplicates.data
+  const groups = duplicates.data?.groups
 
   const choosePair = useCallback(
     (i: number) =>
@@ -399,11 +409,18 @@ export function DuplicateCompare() {
         </Notice>
       </div>
     )
-  } else {
+  } else if (duplicates.data) {
     const at = pairIndex ?? 0
     const pair = group.pairs[at]
     body = pair ? (
-      <PairView group={group} index={index as number} pair={pair} pairIndex={at} onPair={choosePair} />
+      <PairView
+        group={group}
+        index={index as number}
+        pair={pair}
+        pairIndex={at}
+        onPair={choosePair}
+        integerTolerance={duplicates.data.integerTolerance}
+      />
     ) : (
       <div className={styles.state}>
         <Notice icon="alert" heading="No pair to compare">

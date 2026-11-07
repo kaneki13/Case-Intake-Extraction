@@ -3,6 +3,7 @@ import { http } from 'msw'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CatalogField, FieldResult } from '../src/api/types'
 import { flagInfo } from '../src/lib/flags'
+import { isRisky } from '../src/lib/risk'
 import { D01, catalogFixture } from './fixtures'
 import { problem } from './msw/handlers'
 import { server } from './msw/server'
@@ -273,6 +274,116 @@ describe('bulk review', () => {
     await user.click(chip(/^Accepted: /))
     await waitFor(() => expect(rowsIn(pane)).toHaveLength(2))
     expect(rowsIn(pane)).toEqual([row(first), row(second)])
+  })
+})
+
+/** D01's risky fields in display order (what "Risky only" shows). */
+const riskyIds = () =>
+  displayOrder().filter((id) => {
+    const r = d01Fields()[id]
+    return r !== undefined && isRisky(r, catalogFixture.confidence_levels)
+  })
+const freeTextId = () =>
+  displayOrder().find((x) => fieldOf(x).type === 'string' && fieldOf(x).validation?.pattern === undefined) as string
+
+/** D01 open with nothing selected, Risky only on. */
+async function openRiskyOnly() {
+  const risky = riskyIds()
+  expect(risky.length).toBeGreaterThan(0)
+  expect(risky.length).toBeLessThan(total)
+  const app = renderApp('/documents/D01')
+  const pane = panes.fields()
+  await app.user.click(await within(pane).findByRole('button', { name: /risky only/i }))
+  return { ...app, pane, risky }
+}
+
+describe('bulk review under filters', () => {
+  it('filteredAcceptActsOnTheShownUnreviewedFields', async () => {
+    const seen = capturePatches()
+    const { user, pane, risky } = await openRiskyOnly()
+    const accept = await within(pane).findByRole('button', { name: `Accept ${risky.length} shown` })
+    expect(within(pane).queryByRole('button', { name: 'Accept all' })).toBeNull()
+    expect(within(pane).getByRole('button', { name: `Reject ${risky.length} shown` })).toBeInTheDocument()
+
+    await user.click(accept)
+    await waitFor(() => expect(bar(pane)).toHaveAttribute('aria-valuenow', String(risky.length)))
+    expect(seen).toEqual([{ url: '/api/documents/D01/cases/0/fields', body: { action: 'accept', fieldIds: risky } }])
+    expect(within(pane).getByRole('button', { name: 'Accept 0 shown' })).toHaveAttribute('aria-disabled', 'true')
+
+    // Clearing the filters brings back the whole-case actions.
+    await user.click(within(pane).getByRole('button', { name: 'Clear filters' }))
+    expect(within(pane).getByRole('button', { name: 'Accept all' })).toBeInTheDocument()
+  })
+
+  it('filteredRejectConfirmsWithTheShownCount', async () => {
+    const seen = capturePatches()
+    const { user, pane, risky } = await openRiskyOnly()
+    const n = risky.length === 1 ? '1 field' : `${risky.length} fields`
+    await user.click(await within(pane).findByRole('button', { name: `Reject ${risky.length} shown` }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent(n)
+    expect(seen).toEqual([])
+    await user.click(within(dialog).getByRole('button', { name: `Reject ${n}` }))
+    await waitFor(() => expect(bar(pane)).toHaveAttribute('aria-valuenow', String(risky.length)))
+    expect(seen).toEqual([{ url: '/api/documents/D01/cases/0/fields', body: { action: 'reject', fieldIds: risky } }])
+  })
+
+  it('filteredAltShiftAAcceptsTheShownFields', async () => {
+    const seen = capturePatches()
+    const { user, pane, risky } = await openRiskyOnly()
+    await within(pane).findByRole('button', { name: `Accept ${risky.length} shown` })
+    await user.keyboard('{Alt>}{Shift>}a{/Shift}{/Alt}')
+    await waitFor(() => expect(bar(pane)).toHaveAttribute('aria-valuenow', String(risky.length)))
+    expect(seen).toEqual([{ url: '/api/documents/D01/cases/0/fields', body: { action: 'accept', fieldIds: risky } }])
+  })
+})
+
+describe('reviewing a manual edit', () => {
+  /** D01 with a saved edit on a free-text field, that field selected again. */
+  async function withEdit() {
+    const id = freeTextId()
+    const seen = capturePatches()
+    const app = await openField(id)
+    await app.user.type(within(app.inspector()).getByLabelText(fieldOf(id).label), ' kept{Enter}')
+    await waitFor(() => expect(badge(app.row(), 'Manual edit')).not.toBeNull())
+    await waitFor(() => expect(app.selected()).not.toBe(id))
+    await app.user.click(app.row())
+    await waitFor(() => expect(app.selected()).toBe(id))
+    const toolbar = () => screen.getByRole('group', { name: `Review ${fieldOf(id).label}` })
+    return { ...app, id, seen, toolbar }
+  }
+
+  it('rejectOnAnEditedFieldAsksToDiscardTheEditFirst', async () => {
+    const { user, id, seen, row, inspector, toolbar } = await withEdit()
+    const edited = `${String(d01Fields()[id]?.value)} kept`
+
+    // The row's Reject asks; Cancel keeps the edit and sends nothing.
+    await user.click(within(toolbar()).getByRole('button', { name: 'Reject this' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Discard manual edit?' })
+    expect(dialog).toHaveTextContent(edited)
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(seen.map((s) => s.body)).toEqual([{ action: 'edit', value: edited }])
+    expect(badge(row(), 'Manual edit')).not.toBeNull()
+
+    // The inspector's Reject asks too; confirming rejects.
+    await user.click(within(inspector()).getByRole('button', { name: 'Reject this' }))
+    const again = await screen.findByRole('dialog', { name: 'Discard manual edit?' })
+    await user.click(within(again).getByRole('button', { name: 'Discard edit and reject' }))
+    await waitFor(() => expect(badge(row(), 'Rejected')).not.toBeNull())
+    expect(badge(row(), 'Manual edit')).toBeNull()
+    expect(seen.at(-1)).toEqual({ url: `/api/documents/D01/cases/0/fields/${id}`, body: { action: 'reject' } })
+  })
+
+  it('acceptOnAnEditedFieldConfirmsTheEditWithoutAsking', async () => {
+    const { user, id, seen, row, toolbar } = await withEdit()
+    await user.click(within(toolbar()).getByRole('button', { name: 'Accept this' }))
+    await waitFor(() => expect(seen).toHaveLength(2))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(seen.at(-1)).toEqual({ url: `/api/documents/D01/cases/0/fields/${id}`, body: { action: 'accept' } })
+    // The server keeps the edit.
+    expect(badge(row(id), 'Manual edit')).not.toBeNull()
+    expect(badge(row(id), 'Accepted')).toBeNull()
   })
 })
 

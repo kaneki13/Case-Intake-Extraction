@@ -25,7 +25,8 @@ function shapeProblem(path: string, body: unknown): string | null {
     return isObject(body) && Array.isArray(body.fields) ? null : 'catalog without a "fields" array'
   }
   if (p === '/api/duplicates') {
-    return Array.isArray(body) ? null : 'duplicates is not an array'
+    const ok = isObject(body) && Number.isInteger(body.integerTolerance) && Array.isArray(body.groups)
+    return ok ? null : 'duplicates without an integer "integerTolerance" and a "groups" array'
   }
   if (/^\/api\/documents\/[^/]+\/cases\/[^/]+\/fields$/.test(p)) {
     return Array.isArray(body) ? null : 'bulk review answer is not an array'
@@ -71,8 +72,9 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(url, init)
   } catch (cause) {
-    // An aborted request is the caller's decision, not a network failure.
-    if (cause instanceof DOMException && cause.name === 'AbortError') throw cause
+    // An aborted request is the caller's decision, not a network failure. The error may come from another realm
+    // (the test environment's fetch), so it is recognised by name rather than by class.
+    if (init?.signal?.aborted || (isObject(cause) && cause.name === 'AbortError')) throw cause
     const msg = cause instanceof Error ? cause.message : String(cause)
     throw new ApiError(0, 'Network error', `Network error: could not reach the server (${msg})`)
   }
@@ -91,12 +93,19 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T // structurally checked above (top level only)
 }
 
+/** GET `path`. Pass TanStack's `signal` so a query that is no longer wanted cancels its request. */
 export const getJson = <T>(path: string, init?: RequestInit): Promise<T> => requestJson<T>(path, init)
 
-/** Send a JSON body with `method`; same error semantics as getJson. */
-export const sendJson = <T>(method: 'PATCH' | 'POST' | 'PUT', path: string, body: unknown): Promise<T> =>
+/** Send a JSON body with `method`; same error semantics as getJson. `signal` cancels the request. */
+export const sendJson = <T>(
+  method: 'PATCH' | 'POST' | 'PUT',
+  path: string,
+  body: unknown,
+  options: { signal?: AbortSignal } = {},
+): Promise<T> =>
   requestJson<T>(path, {
     method,
     headers: { 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify(body),
+    signal: options.signal,
   })

@@ -1,6 +1,6 @@
 import { QueryClient, useQuery } from '@tanstack/react-query'
 import { ApiError, getJson } from './client'
-import type { Catalog, DocumentDetail, DocumentSummary, DuplicateGroup } from './types'
+import type { Catalog, DocumentDetail, DocumentSummary, DuplicatesResponse } from './types'
 
 /** A 4xx answer (missing document, bad request) will not change on a retry. */
 const isClientError = (error: unknown): boolean => error instanceof ApiError && error.status >= 400 && error.status < 500
@@ -19,18 +19,26 @@ export function createQueryClient(): QueryClient {
   })
 }
 
+// Every query hands TanStack's signal to fetch: a query that is cancelled or cleared stops its request.
 export const useCatalog = () =>
-  useQuery({ queryKey: ['catalog'], queryFn: () => getJson<Catalog>('/api/catalog') })
+  useQuery({ queryKey: ['catalog'], queryFn: ({ signal }) => getJson<Catalog>('/api/catalog', { signal }) })
 
 export const useDocuments = () =>
-  useQuery({ queryKey: ['documents'], queryFn: () => getJson<DocumentSummary[]>('/api/documents') })
+  useQuery({
+    queryKey: ['documents'],
+    queryFn: ({ signal }) => getJson<DocumentSummary[]>('/api/documents', { signal }),
+  })
 
 export const useDocument = (id: string | undefined) =>
   useQuery({
     queryKey: ['document', id],
-    queryFn: () => getJson<DocumentDetail>(`/api/documents/${encodeURIComponent(id as string)}`),
+    queryFn: ({ signal }) => getJson<DocumentDetail>(`/api/documents/${encodeURIComponent(id as string)}`, { signal }),
     enabled: id !== undefined,
   })
 
+/** The duplicate groups and the detector's integer tolerance (the comparison view uses it). */
 export const useDuplicates = () =>
-  useQuery({ queryKey: ['duplicates'], queryFn: () => getJson<DuplicateGroup[]>('/api/duplicates') })
+  useQuery({
+    queryKey: ['duplicates'],
+    queryFn: ({ signal }) => getJson<DuplicatesResponse>('/api/duplicates', { signal }),
+  })

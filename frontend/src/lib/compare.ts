@@ -7,12 +7,6 @@ export type Comparison = 'match' | 'differ' | 'one-sided' | 'both-absent'
 /** Every state, in the order the UI reports them. */
 export const COMPARISONS: readonly Comparison[] = ['match', 'differ', 'one-sided', 'both-absent']
 
-/**
- * Mirrors `duplicates.integer-tolerance` in application.yml (STRETCH §2.2): two integers within this
- * distance agree. The server does not send its setting, so a change there must be made here too.
- */
-export const DEFAULT_INTEGER_TOLERANCE = 1
-
 /** Only an extracted value with a value counts as present; unknown and conflict are absent. */
 const present = (r: FieldResult | undefined): r is FieldResult & { value: NonNullable<unknown> } =>
   r !== undefined && r.status === 'extracted' && r.value !== undefined && r.value !== null
@@ -73,13 +67,14 @@ function equal(field: CatalogField, a: unknown, b: unknown, integerTolerance: nu
 
 /**
  * Compare one field of two cases by its catalog type, with the rules of the backend `ValueComparator`
- * (STRETCH §2.2). Throws when an extracted value does not have its type's shape.
+ * (STRETCH §2.2). `integerTolerance` is the server's `duplicates.integer-tolerance`, as GET /api/duplicates
+ * sends it; there is no frontend copy. Throws when an extracted value does not have its type's shape.
  */
 export function compareFieldValues(
   field: CatalogField,
   a: FieldResult | undefined,
   b: FieldResult | undefined,
-  integerTolerance: number = DEFAULT_INTEGER_TOLERANCE,
+  integerTolerance: number,
 ): Comparison {
   const hasA = present(a)
   const hasB = present(b)

@@ -46,7 +46,7 @@ function RailItem({ doc, levels }: { doc: DocumentSummary; levels: string[] }) {
  */
 function DuplicatesLink() {
   const duplicates = useDuplicates()
-  const count = duplicates.data?.length
+  const count = duplicates.data?.groups.length
   const name = duplicates.isError
     ? "Duplicates (couldn't load)"
     : count === undefined ? 'Duplicates' : `Duplicates (${count})`

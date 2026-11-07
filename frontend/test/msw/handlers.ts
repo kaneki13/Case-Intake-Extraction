@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import type { CatalogField, DocumentDetail, MergedField, Review, Reviews } from '../../src/api/types'
-import { catalogFixture, documentFixtures, duplicateDocFixtures, duplicateFixtures, summaryFixtures } from '../fixtures'
+import { catalogFixture, documentFixtures, duplicateDocFixtures, duplicateFixtures, duplicatesOf, summaryFixtures } from '../fixtures'
 
 export const problem = (status: number, detail: string) =>
   HttpResponse.json(
@@ -84,7 +84,7 @@ export const handlers = [
   http.get('*/api/catalog', () => HttpResponse.json(catalogFixture)),
   http.get('*/api/documents', () =>
     HttpResponse.json(summaryFixtures.map((s) => ({ ...s, progress: progressOf(s.id, s.caseCount) })))),
-  http.get('*/api/duplicates', () => HttpResponse.json(duplicateFixtures)),
+  http.get('*/api/duplicates', () => HttpResponse.json(duplicatesOf(duplicateFixtures))),
   http.get('*/api/documents/:id', ({ params }) => {
     const doc = findDoc(params.id)
     return doc ? HttpResponse.json(served(doc)) : problem(404, `Document ${String(params.id)} not found`)
@@ -112,12 +112,13 @@ export const handlers = [
       if (msg) return problem(400, msg)
     }
     updateCase(loc.docId, loc.caseIndex, (forCase) => {
+      const current = forCase[fieldId]
       if (action === 'reset') delete forCase[fieldId]
-      else {
-        forCase[fieldId] = action === 'edit'
-          ? { state: 'edited', value: body.value, at: now() }
-          : { state: action === 'accept' ? 'accepted' : 'rejected', at: now() }
-      }
+      else if (action === 'edit') forCase[fieldId] = { state: 'edited', value: body.value, at: now() }
+      // As on the server: accept confirms an edit (kept) or an accept; reject keeps a reject.
+      else if (action === 'accept' && (current?.state === 'edited' || current?.state === 'accepted')) return
+      else if (action === 'reject' && current?.state === 'rejected') return
+      else forCase[fieldId] = { state: action === 'accept' ? 'accepted' : 'rejected', at: now() }
     })
     return HttpResponse.json(merged(loc.docId, loc.caseIndex, fieldId))
   }),

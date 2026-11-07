@@ -129,6 +129,8 @@ export function FieldInspector({
   // Capture phase: ahead of the control's own Enter (a closed list would open, a button would click).
   const onEnter = (event: KeyboardEvent<HTMLFormElement>) => {
     if (event.key !== 'Enter' || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    // The Enter that ends an input-method composition belongs to the input method: it must not save.
+    if (event.nativeEvent.isComposing) return
     const target = event.target as HTMLElement
     if (target.id !== controlId) return
     // The add box of a list adds its text first; Enter on an empty box saves.

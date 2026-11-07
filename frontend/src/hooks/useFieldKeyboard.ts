@@ -107,7 +107,8 @@ export function useFieldKeyboard(options: FieldKeyboardOptions): void {
           return
         }
         case 'Enter':
-          if (!inFields || selected === null || inOtherRow) return
+          // Keys of an input-method composition are the input method's: they never start an edit.
+          if (event.isComposing || !inFields || selected === null || inOtherRow) return
           // The selected row would toggle shut on Enter: here Enter edits. Other buttons keep Enter.
           if (!onSelectedRow && target?.closest(ACTIVATES_ON_ENTER)) return
           if (startEdit(null)) event.preventDefault()
@@ -118,7 +119,7 @@ export function useFieldKeyboard(options: FieldKeyboardOptions): void {
           clear()
           return
         default:
-          if (!isPrintable(event.key) || !inFields || selected === null || inOtherRow) return
+          if (event.isComposing || !isPrintable(event.key) || !inFields || selected === null || inOtherRow) return
           if (startEdit(event.key)) event.preventDefault()
       }
     }

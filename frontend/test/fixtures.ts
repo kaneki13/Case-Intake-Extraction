@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type {
-  Catalog, CaseOutput, DocumentDetail, DocumentSummary, DuplicateGroup, Extraction, FieldResult, ReviewCounts,
+  Catalog, CaseOutput, DocumentDetail, DocumentSummary, DuplicateGroup, DuplicatesResponse, Extraction, FieldResult,
+  ReviewCounts,
 } from '../src/api/types'
 
 const repoRoot = resolve(__dirname, '../..')
@@ -116,5 +117,8 @@ function buildDuplicates(): { docs: [DocumentDetail, DocumentDetail]; groups: Du
 const dup = buildDuplicates()
 export const duplicateDocFixtures: DocumentDetail[] = dup.docs
 export const duplicateFixtures: DuplicateGroup[] = dup.groups
+/** GET /api/duplicates as the server answers it: the detector's integer tolerance and the groups. */
+export const duplicatesOf = (groups: DuplicateGroup[], integerTolerance = 1): DuplicatesResponse =>
+  ({ integerTolerance, groups })
 /** The one field whose value differs between DUP_A and DUP_B. */
 export const duplicateChangedFieldId: string = dup.changed

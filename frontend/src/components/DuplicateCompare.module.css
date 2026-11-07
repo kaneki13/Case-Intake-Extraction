@@ -192,7 +192,7 @@
 }
 
 .colState {
-  width: 36px;
+  width: 120px;
 }
 
 .table thead th {
@@ -268,7 +268,12 @@
   text-align: left;
 }
 
-/* The label is the row's button; its ::after stretches over the whole row, so any cell selects it. */
+/* The row's click handler selects it (any cell); the label is its keyboard button. The button's ::after only
+   paints the row's hover, focus and selection: it lets clicks through to the cell beneath. */
+.row {
+  cursor: pointer;
+}
+
 .rowButton {
   display: block;
   width: 100%;
@@ -287,6 +292,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
+  pointer-events: none;
   border-radius: var(--radius-s);
   content: '';
   transition: background var(--dur-fast) var(--ease);
@@ -362,12 +368,32 @@
 }
 
 .row > .stateCell {
-  padding-right: 0;
-  padding-left: 0;
-  text-align: center;
+  padding-right: var(--s1);
+  padding-left: var(--s1);
 }
 
-/* The state icon: a small disc in the state's tone. The text beside it is for screen readers; the legend shows it to everyone. */
+/* The state: its icon and its word, side by side, in the state's tone. */
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stateText {
+  color: var(--tone);
+  font-size: var(--t13);
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.row[data-state='one-sided'] .stateText,
+.row[data-state='both-absent'] .stateText {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* The state icon: a small disc in the state's tone. */
 .icon {
   display: inline-grid;
   place-items: center;

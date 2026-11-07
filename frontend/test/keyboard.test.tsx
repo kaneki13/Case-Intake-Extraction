@@ -456,6 +456,61 @@ describe('review shortcuts', () => {
   })
 })
 
+describe('composition (IME)', () => {
+  it('enterWhileComposingDoesNotSave', async () => {
+    const text = freeText()
+    const seen = capturePatches()
+    const { user, row, inspector } = await openOnRow(text.id)
+    await user.keyboard('{Enter}')
+    const input = within(inspector(text.id)).getByLabelText(text.label)
+    await user.keyboard(' x')
+    // The Enter that commits a composition belongs to the input method, not the editor.
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    // A save would be on its way by now: give it every chance to show.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(seen).toEqual([])
+    expect(input).toHaveFocus()
+    expect(badge(row(text.id), 'Manual edit')).toBeNull()
+
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(seen).toHaveLength(1))
+  })
+
+  it('typingWhileComposingOnARowDoesNotStartAnEdit', async () => {
+    const text = freeText()
+    const { row, inspector } = await openOnRow(text.id)
+    fireEvent.keyDown(row(text.id), { key: 'a', isComposing: true })
+    expect(row(text.id)).toHaveFocus()
+
+    fireEvent.keyDown(row(text.id), { key: 'a' })
+    const input = within(inspector(text.id)).getByLabelText(text.label)
+    expect(input).toHaveFocus()
+    expect(input).toHaveValue('a')
+  })
+})
+
+describe('rejecting a manual edit from the keyboard', () => {
+  it('altROnAnEditedFieldAsksToDiscardTheEdit', async () => {
+    const text = freeText()
+    const seen = capturePatches()
+    const { user, field, row } = await openOnRow(text.id)
+    await user.keyboard('{Enter} kept{Enter}')
+    await waitFor(() => expect(badge(row(text.id), 'Manual edit')).not.toBeNull())
+    await waitFor(() => expect(field()).not.toBe(text.id))
+    await user.click(row(text.id))
+    await waitFor(() => expect(field()).toBe(text.id))
+    row(text.id).focus()
+
+    await user.keyboard('{Alt>}r{/Alt}')
+    expect(await screen.findByRole('dialog', { name: 'Discard manual edit?' })).toBeInTheDocument()
+    expect(seen).toHaveLength(1)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(seen).toHaveLength(1)
+    expect(badge(row(text.id), 'Manual edit')).not.toBeNull()
+  })
+})
+
 describe('keys that belong elsewhere', () => {
   it('shortcutsIgnoredInsideInputs', async () => {
     const text = freeText()

@@ -8,7 +8,8 @@ const x = (value: unknown): FieldResult => ({ status: 'extracted', value, confid
 const unknown: FieldResult = { status: 'unknown' }
 const conflict: FieldResult = { status: 'conflict' }
 
-const compare = (type: FieldType, a: FieldResult | undefined, b: FieldResult | undefined, tolerance?: number) =>
+/** The tolerance is always the server's (GET /api/duplicates); 1 is the application.yml value. */
+const compare = (type: FieldType, a: FieldResult | undefined, b: FieldResult | undefined, tolerance = 1) =>
   compareFieldValues(fieldOf(type), a, b, tolerance)
 
 describe('compareFieldValues presence (only extracted values count)', () => {

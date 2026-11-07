@@ -1,10 +1,10 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { delay, http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DocumentDetail, DuplicateGroup } from '../src/api/types'
 import { comparisonClass } from '../src/lib/compare'
 import {
-  D01, catalogFixture, duplicateChangedFieldId, duplicateDocFixtures, duplicateFixtures,
+  D01, catalogFixture, duplicateChangedFieldId, duplicateDocFixtures, duplicateFixtures, duplicatesOf,
 } from './fixtures'
 import { problem, served } from './msw/handlers'
 import { server } from './msw/server'
@@ -29,6 +29,25 @@ const rowOf = (t: HTMLElement, fieldId: string) =>
   within(t).getByRole('button', { name: labelOf(fieldId) }).closest('tr') as HTMLElement
 const text = (id: string) => screen.findByRole('article', { name: `Text of ${id}` })
 
+/** An integer field the duplicate fixture extracts (never by name). */
+function integerPick(): string {
+  const pick = catalogFixture.fields.find((f) => {
+    const v = DUP_A.extraction.cases[0]?.fields[f.id]
+    return f.type === 'integer' && v?.status === 'extracted' && typeof v.value === 'number'
+  })
+  if (!pick) throw new Error('the duplicate fixture extracts no integer field')
+  return pick.id
+}
+
+/** Serve DUP_B with the integer field `id` moved by `by`. */
+function serveShifted(id: string, by: number) {
+  const b = clone(DUP_B)
+  const field = b.extraction.cases[0]?.fields[id]
+  if (!field) throw new Error('fixture field missing')
+  field.value = (field.value as number) + by
+  serve(b)
+}
+
 /** Serve a changed copy of a duplicate document. */
 function serve(doc: DocumentDetail) {
   server.use(http.get(`*/api/documents/${doc.id}`, () => HttpResponse.json(served(doc))))
@@ -47,7 +66,7 @@ describe('DuplicatesPage', () => {
   })
 
   it('noGroupsShowsIntentionalEmptyState', async () => {
-    server.use(http.get('*/api/duplicates', () => HttpResponse.json([])))
+    server.use(http.get('*/api/duplicates', () => HttpResponse.json(duplicatesOf([]))))
     renderApp('/duplicates')
     expect(await screen.findByRole('heading', { name: 'No duplicate cases found' })).toBeInTheDocument()
     expect(within(screen.getByRole('main')).queryByRole('link')).toBeNull()
@@ -83,7 +102,8 @@ describe('DuplicateCompare', () => {
     const differ = rowOf(t, duplicateChangedFieldId)
     expect(differ).toHaveClass(comparisonClass('differ'))
     expect(within(differ).getByText('✗')).toBeInTheDocument()
-    expect(within(differ).getByText('Differ')).toBeInTheDocument()
+    // The state word is visible next to the icon, not only announced.
+    expect(within(differ).getByText('Differ')).not.toHaveClass('visually-hidden')
 
     const others = catalogFixture.fields.filter((f) => f.id !== duplicateChangedFieldId)
     for (const field of others) {
@@ -91,7 +111,7 @@ describe('DuplicateCompare', () => {
       expect(row).toHaveClass(comparisonClass('match'))
       expect(row).not.toHaveClass(comparisonClass('differ'))
       expect(within(row).getByText('✓')).toBeInTheDocument()
-      expect(within(row).getByText('Match')).toBeInTheDocument()
+      expect(within(row).getByText('Match')).not.toHaveClass('visually-hidden')
     }
     expect(screen.getByText(`${others.length} match · 1 differ · 0 one-sided`)).toBeInTheDocument()
   })
@@ -112,10 +132,11 @@ describe('DuplicateCompare', () => {
     const t = await table()
     await waitFor(() => expect(rowOf(t, oneSided)).toHaveClass(comparisonClass('one-sided')))
     expect(within(rowOf(t, oneSided)).getByText('◌')).toBeInTheDocument()
-    expect(within(rowOf(t, oneSided)).getByText('One side only')).toBeInTheDocument()
+    expect(within(rowOf(t, oneSided)).getByText('One side only')).not.toHaveClass('visually-hidden')
     expect(rowOf(t, absent)).toHaveClass(comparisonClass('both-absent'))
-    expect(within(rowOf(t, absent)).getByText('·')).toBeInTheDocument()
-    expect(within(rowOf(t, absent)).getByText('Neither')).toBeInTheDocument()
+    expect(within(rowOf(t, absent)).getByText('—')).toBeInTheDocument()
+    expect(within(rowOf(t, absent)).queryByText('·')).toBeNull()
+    expect(within(rowOf(t, absent)).getByText('Neither')).not.toHaveClass('visually-hidden')
     const matches = catalogFixture.fields.length - 3
     expect(screen.getByText(`${matches} match · 1 differ · 1 one-sided · 1 in neither`)).toBeInTheDocument()
   })
@@ -143,6 +164,48 @@ describe('DuplicateCompare', () => {
     await user.click(button)
     await waitFor(() => expect(a.querySelector('.is-selected')).toBeNull())
     expect(b.querySelector('.is-selected')).toBeNull()
+  })
+
+  it('clickingAnyCellOfARowSelectsItsField', async () => {
+    const id = duplicateChangedFieldId
+    const { user, router } = renderApp('/duplicates/0')
+    const t = await table()
+    const cells = () => rowOf(t, id).querySelectorAll('td')
+    const field = () => new URLSearchParams(router.state.location.search).get('field')
+    expect(cells().length).toBe(3)
+
+    // A value cell, not the label button: the row's own handler selects the field.
+    await user.click(cells()[2] as HTMLElement)
+    expect(field()).toBe(id)
+    expect(within(t).getByRole('button', { name: labelOf(id) })).toHaveAttribute('aria-pressed', 'true')
+    // The state cell toggles it off again.
+    await user.click(cells()[1] as HTMLElement)
+    expect(field()).toBeNull()
+    // The label button still works from the keyboard, and one click toggles once (not twice).
+    within(t).getByRole('button', { name: labelOf(id) }).focus()
+    await user.keyboard('{Enter}')
+    expect(field()).toBe(id)
+    fireEvent.click(within(t).getByRole('button', { name: labelOf(id) }))
+    expect(field()).toBeNull()
+  })
+
+  it('integerToleranceComesFromTheApi', async () => {
+    const pick = integerPick()
+    serveShifted(pick, 3)
+    // The server says integers within 5 agree: 3 apart is a match, with no frontend constant in the way.
+    server.use(http.get('*/api/duplicates', () => HttpResponse.json(duplicatesOf(duplicateFixtures, 5))))
+    renderApp('/duplicates/0')
+    const t = await table()
+    await waitFor(() => expect(rowOf(t, pick)).toHaveClass(comparisonClass('match')))
+  })
+
+  it('integerOutsideTheApiToleranceDiffers', async () => {
+    const pick = integerPick()
+    serveShifted(pick, 3)
+    server.use(http.get('*/api/duplicates', () => HttpResponse.json(duplicatesOf(duplicateFixtures, 2))))
+    renderApp('/duplicates/0')
+    const t = await table()
+    await waitFor(() => expect(rowOf(t, pick)).toHaveClass(comparisonClass('differ')))
   })
 
   it('clickingAQuoteSelectsTheFieldInBothTexts', async () => {
@@ -183,7 +246,7 @@ describe('DuplicateCompare', () => {
         { a: { id: 'DUP_A', caseIndex: 0 }, b: { id: 'DUP_B', caseIndex: 0 }, agreements: 15 },
       ],
     }
-    server.use(http.get('*/api/duplicates', () => HttpResponse.json([group])))
+    server.use(http.get('*/api/duplicates', () => HttpResponse.json(duplicatesOf([group]))))
     const { user } = renderApp('/duplicates/0')
     const tabs = await screen.findByRole('tablist', { name: 'Document pairs' })
     expect(within(tabs).getAllByRole('tab')).toHaveLength(3)

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useDocument, useDocuments, useDuplicates } from '../src/api/queries'
 import { useBulkReview, useReviewField } from '../src/api/reviews'
 import type { CatalogField } from '../src/api/types'
-import { catalogFixture, duplicateFixtures } from './fixtures'
+import { catalogFixture, duplicateFixtures, duplicatesOf } from './fixtures'
 import { server } from './msw/server'
 
 // Listeners added by capture() go even when a test fails half-way.
@@ -136,7 +136,8 @@ describe('useDuplicates', () => {
     const { wrapper } = setup()
     const { result } = renderHook(() => useDuplicates(), { wrapper })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    expect(result.current.data).toEqual(duplicateFixtures)
-    expect(result.current.data?.[0]?.pairs[0]).toMatchObject({ a: { id: 'DUP_A', caseIndex: 0 }, b: { id: 'DUP_B' } })
+    expect(result.current.data).toEqual(duplicatesOf(duplicateFixtures))
+    expect(result.current.data?.integerTolerance).toBe(1)
+    expect(result.current.data?.groups[0]?.pairs[0]).toMatchObject({ a: { id: 'DUP_A', caseIndex: 0 }, b: { id: 'DUP_B' } })
   })
 })

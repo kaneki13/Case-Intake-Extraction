@@ -3,6 +3,8 @@ package com.caseintake.pipeline;
 import com.caseintake.catalog.Catalog;
 import com.caseintake.catalog.CatalogLoader;
 import com.caseintake.config.AppProperties;
+import com.caseintake.duplicates.DuplicateProperties;
+import com.caseintake.duplicates.DuplicatesWriter;
 import com.caseintake.fixtures.FixtureExchangeSource;
 import com.caseintake.fixtures.FixtureStore;
 import com.caseintake.prompt.PromptBuilder;
@@ -23,15 +25,17 @@ public class ReplayCommand {
     static final String RESUME_COMMAND = "java -jar target/case-intake.jar replay";
 
     private final AppProperties app;
+    private final DuplicateProperties duplicates;
     private final PrintStream err;
 
     @Autowired
-    public ReplayCommand(AppProperties app) {
-        this(app, System.err);
+    public ReplayCommand(AppProperties app, DuplicateProperties duplicates) {
+        this(app, duplicates, System.err);
     }
 
-    ReplayCommand(AppProperties app, PrintStream err) {
+    ReplayCommand(AppProperties app, DuplicateProperties duplicates, PrintStream err) {
         this.app = app;
+        this.duplicates = duplicates;
         this.err = err;
     }
 
@@ -58,8 +62,13 @@ public class ReplayCommand {
     public RunReport run(Path catalogPath, Path outDir, Path derivedDir, Set<String> only) {
         Catalog catalog = CatalogLoader.load(catalogPath);
         List<SourceDocument> docs = DocumentSource.list(app.documents());
+        duplicates.validate(catalog);
         DocumentPipeline pipeline = new DocumentPipeline(new PromptBuilder(), null, null, null,
                 new TranscriptStore(derivedDir), err::println);
-        return pipeline.run(docs, only, catalog, new FixtureExchangeSource(new FixtureStore(app.fixtures())), outDir);
+        RunReport report = pipeline.run(docs, only, catalog,
+                new FixtureExchangeSource(new FixtureStore(app.fixtures())), outDir);
+        // after all documents, over every output now in outDir, even when some document failed
+        DuplicatesWriter.detectAndWrite(outDir, catalog, duplicates);
+        return report;
     }
 }

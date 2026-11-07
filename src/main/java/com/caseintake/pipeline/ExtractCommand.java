@@ -3,6 +3,8 @@ package com.caseintake.pipeline;
 import com.caseintake.catalog.Catalog;
 import com.caseintake.catalog.CatalogLoader;
 import com.caseintake.config.AppProperties;
+import com.caseintake.duplicates.DuplicateProperties;
+import com.caseintake.duplicates.DuplicatesWriter;
 import com.caseintake.fixtures.Exchange;
 import com.caseintake.fixtures.ExchangeKey;
 import com.caseintake.fixtures.ExchangeSource;
@@ -42,19 +44,22 @@ public class ExtractCommand {
 
     private final AppProperties app;
     private final LlmProperties llm;
+    private final DuplicateProperties duplicates;
     private final Supplier<Optional<LlmClient>> client;
     private final Clock clock;
     private final PrintStream err;
 
     @Autowired
-    public ExtractCommand(AppProperties app, LlmProperties llm, ObjectProvider<LlmClient> clients, Clock clock) {
-        this(app, llm, () -> Optional.ofNullable(clients.getIfAvailable()), clock, System.err);
+    public ExtractCommand(AppProperties app, LlmProperties llm, DuplicateProperties duplicates,
+                          ObjectProvider<LlmClient> clients, Clock clock) {
+        this(app, llm, duplicates, () -> Optional.ofNullable(clients.getIfAvailable()), clock, System.err);
     }
 
-    ExtractCommand(AppProperties app, LlmProperties llm, Supplier<Optional<LlmClient>> client, Clock clock,
-                   PrintStream err) {
+    ExtractCommand(AppProperties app, LlmProperties llm, DuplicateProperties duplicates,
+                   Supplier<Optional<LlmClient>> client, Clock clock, PrintStream err) {
         this.app = app;
         this.llm = llm;
+        this.duplicates = duplicates;
         this.client = client;
         this.clock = clock;
         this.err = err;
@@ -109,6 +114,7 @@ public class ExtractCommand {
         try {
             catalog = CatalogLoader.load(app.catalog());
             docs = DocumentSource.list(app.documents());
+            duplicates.validate(catalog);
         } catch (RuntimeException e) {
             return configError(e.getMessage());
         }
@@ -121,6 +127,12 @@ public class ExtractCommand {
                 transcriptionModel, new TranscriptStore(app.derived()), err::println);
         RunReport report = pipeline.run(docs, only, catalog, source, app.out());
         report.print(err, RESUME_COMMAND);
+        try {
+            // after all documents, over every output now in out/ (a partial --only run still reflects the rest)
+            DuplicatesWriter.detectAndWrite(app.out(), catalog, duplicates);
+        } catch (RuntimeException e) {
+            return configError("duplicate detection failed: " + e.getMessage());
+        }
         return report.exitCode();
     }
 

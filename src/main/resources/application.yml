@@ -25,3 +25,9 @@ llm:
     base-url: https://generativelanguage.googleapis.com
     api-key: ${GEMINI_API_KEY:}   # empty is allowed for replay/server, rejected by extract
     timeout: 300s                 # thinking models can take over two minutes under load
+duplicates:                       # post-processing over all outputs; section ids are catalog sections
+  identity-section: patient       # any differing field here rules a pair out (same drug and event, other patient)
+  required-sections: [patient, drug, event]   # each needs at least one agreeing field
+  min-agreements: 5
+  high-agreements: 8
+  integer-tolerance: 1            # integers count as equal when they differ by at most this

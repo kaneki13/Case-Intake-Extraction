@@ -406,3 +406,40 @@ record ExtractionOutput(String documentId, String catalogVersion, String model, 
 | `CatalogChangeReplayTest` | A temp catalog adds a new string field and makes the first patterned field's pattern unsatisfiable. Replay gives `unknown` with the exact notes from §9.2. No code change needed. |
 | `NoSecretsCommittedTest` | `git ls-files -co --exclude-standard` contains no `AIza[0-9A-Za-z_-]{35}` |
 | `DocumentControllerTest` | List, detail, 404, 400 on a bad id, catalog passthrough, transcript served when there is no .txt |
+
+## 15. Duplicates (`duplicates`)
+
+Pure Java post-processing after all documents (extract and replay). It names no catalog field id: section ids come from configuration.
+
+**Configuration** (`DuplicateProperties`, yml `duplicates`):
+
+| Key | Value | Meaning |
+|---|---|---|
+| `identity-section` | `patient` | Any `DIFFER` field in this section rules a pair out. |
+| `required-sections` | `[patient, drug, event]` | Each needs at least one `MATCH`. |
+| `min-agreements` | `5` | Fewest matching fields for an accepted pair (at least 1). |
+| `high-agreements` | `8` | Matching fields for `high` confidence (at least `min-agreements`). |
+| `integer-tolerance` | `1` | Integers are equal when they differ by at most this (not negative). |
+
+`validate(catalog)` runs before any document is processed: an unknown section id or an out-of-range value is a configuration error (exit 2) for extract and replay.
+
+**Comparator** (`ValueComparator.compare(FieldDef, FieldResult, FieldResult) -> Comparison`). Only `extracted` values are present; `unknown` and `conflict` are absent. Both absent gives `BOTH_ABSENT`, one absent gives `ONE_SIDED`, otherwise:
+
+| Type | `MATCH` when |
+|---|---|
+| `string` | equal after trim and case-fold (`Locale.ROOT`) |
+| `integer` | difference at most `integer-tolerance` |
+| `number` | `BigDecimal.compareTo` equal |
+| `date`, `coded` | equal |
+| `coded_multi` | equal as sets |
+| `string_list` | both empty, or overlapping after trim and case-fold |
+
+**Algorithm** (`DuplicateDetector.detect(outputs, catalog, props) -> DuplicateReport(groups, pairs)`):
+1. Sort documents by id; for each pair of different documents, each case pair in ascending case index.
+2. Compare every catalog field. Any `DIFFER` in the identity section rejects the pair (same drug and reaction, different patient).
+3. agreements = number of `MATCH`. Accept when agreements >= `min-agreements` and every required section has a `MATCH`.
+4. Pair confidence is `high` when agreements >= `high-agreements`, else `medium`.
+5. Groups: union-find over the document ids of accepted pairs. `document_ids` sorted; groups sorted by first id. Group confidence is the lowest of its pairs (`high` > `medium`).
+6. Reason: `Same patient and event: ` plus up to 6 matched values in catalog order, from the strongest pair (most agreements, first on ties), joined with `, `; lists join with `/`. A group with more than one document pair appends ` (+N more document pairs)`.
+
+**Output**: `DuplicatesWriter` writes `out/duplicates.json` as `{"groups":[{"document_ids","confidence","reason"}]}`, pretty-printed (same printer as `OutputWriter`), UTF-8, trailing newline, valid against `schema/duplicates.schema.json`. It is always written, with an empty `groups` array when there are none. `detectAndWrite(outDir, ...)` reads every `*.json` in the run's out dir except `duplicates.json` after the run, so a partial `--only` run still reflects all committed outputs; it runs even when a document failed, and the exit code is unchanged. Replay into `--out=<dir>` writes `<dir>/duplicates.json`; `ReplayGoldenTest` compares it byte for byte.

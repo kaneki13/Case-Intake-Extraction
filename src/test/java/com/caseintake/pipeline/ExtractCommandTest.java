@@ -18,6 +18,7 @@ import com.caseintake.llm.LlmRequest;
 import com.caseintake.llm.LlmResponse;
 import com.caseintake.output.OutputWriter;
 import com.caseintake.support.CatalogFixtures;
+import com.caseintake.support.DuplicateFixtures;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -105,7 +106,7 @@ class ExtractCommandTest {
         if (client instanceof FakeClient fake) {
             fake.secret = key;
         }
-        return new ExtractCommand(app(), llm(), () -> Optional.ofNullable(client), CLOCK, err);
+        return new ExtractCommand(app(), llm(), DuplicateFixtures.standard(), () -> Optional.ofNullable(client), CLOCK, err);
     }
 
     String stderr() {
@@ -234,7 +235,7 @@ class ExtractCommandTest {
         FakeClient client = new FakeClient(ONE_CASE, EMPTY_FIELDS);
         LlmProperties blank = new LlmProperties("fake", new LlmProperties.Models("case-model", " ", "transcribe-model"), null, null, null);
 
-        int code = new ExtractCommand(app(), blank, () -> Optional.of(client), CLOCK, err)
+        int code = new ExtractCommand(app(), blank, DuplicateFixtures.standard(), () -> Optional.of(client), CLOCK, err)
                 .run(Set.of(), Optional.empty(), false);
 
         assertThat(code).isEqualTo(2);
@@ -243,13 +244,13 @@ class ExtractCommandTest {
         assertThat(out).doesNotExist();
 
         LlmProperties none = new LlmProperties("fake", null, null, null, null);
-        assertThat(new ExtractCommand(app(), none, () -> Optional.of(client), CLOCK, err)
+        assertThat(new ExtractCommand(app(), none, DuplicateFixtures.standard(), () -> Optional.of(client), CLOCK, err)
                 .run(Set.of(), Optional.empty(), false)).isEqualTo(2);
         assertThat(stderr()).contains("llm.models.case-finding is not set");
 
         LlmProperties noTranscription = new LlmProperties("fake",
                 new LlmProperties.Models("case-model", "extract-model", ""), null, null, null);
-        assertThat(new ExtractCommand(app(), noTranscription, () -> Optional.of(client), CLOCK, err)
+        assertThat(new ExtractCommand(app(), noTranscription, DuplicateFixtures.standard(), () -> Optional.of(client), CLOCK, err)
                 .run(Set.of(), Optional.empty(), false)).isEqualTo(2);
         assertThat(stderr()).contains("Configuration error: llm.models.transcription is not set");
         assertThat(client.requests).isEmpty();

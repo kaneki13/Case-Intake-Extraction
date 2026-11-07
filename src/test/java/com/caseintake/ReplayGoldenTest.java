@@ -6,6 +6,7 @@ import com.caseintake.config.AppProperties;
 import com.caseintake.pipeline.ReplayCommand;
 import com.caseintake.pipeline.RunReport;
 import com.caseintake.support.CatalogFixtures;
+import com.caseintake.support.DuplicateFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.io.TempDir;
 class ReplayGoldenTest {
     static final Path COMMITTED_OUT = Path.of("out");
     static final Path COMMITTED_DERIVED = Path.of("derived");
+    static final String DUPLICATES = "duplicates.json";
     static final ObjectMapper JSON = new ObjectMapper();
 
     @TempDir Path tmp;
@@ -40,7 +42,7 @@ class ReplayGoldenTest {
         ReplayCommand command;
         System.setErr(new PrintStream(log, true, StandardCharsets.UTF_8));
         try {
-            command = new ReplayCommand(app);
+            command = new ReplayCommand(app, DuplicateFixtures.standard());
         } finally {
             System.setErr(original);
         }
@@ -60,9 +62,11 @@ class ReplayGoldenTest {
         }
     }
 
+    /** The document outputs: every .json in dir except duplicates.json. */
     static List<String> jsonFiles(Path dir) throws IOException {
         try (Stream<Path> files = Files.list(dir)) {
-            return files.map(p -> p.getFileName().toString()).filter(n -> n.endsWith(".json")).sorted().toList();
+            return files.map(p -> p.getFileName().toString())
+                    .filter(n -> n.endsWith(".json") && !n.equals(DUPLICATES)).sorted().toList();
         }
     }
 
@@ -81,6 +85,8 @@ class ReplayGoldenTest {
                     .as(name)
                     .isEqualTo(JSON.readTree(COMMITTED_OUT.resolve(name).toFile()));
         }
+        assertThat(Files.readAllBytes(replayed.resolve(DUPLICATES))).as(DUPLICATES)
+                .isEqualTo(Files.readAllBytes(COMMITTED_OUT.resolve(DUPLICATES)));
         assertThat(files(replayedDerived)).containsExactlyElementsOf(files(COMMITTED_DERIVED));
         for (String name : files(COMMITTED_DERIVED)) {
             assertThat(Files.readAllBytes(replayedDerived.resolve(name))).as(name)

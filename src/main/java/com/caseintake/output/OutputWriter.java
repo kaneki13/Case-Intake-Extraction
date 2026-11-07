@@ -1,7 +1,9 @@
 package com.caseintake.output;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -49,6 +51,15 @@ public final class OutputWriter {
             return MAPPER.readValue(Files.readString(file, StandardCharsets.UTF_8), ExtractionOutput.class);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /** Binds an already parsed out/ file; throws IllegalArgumentException when it does not fit the output shape. */
+    public static ExtractionOutput fromTree(JsonNode tree) {
+        try {
+            return MAPPER.treeToValue(tree, ExtractionOutput.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("not an extraction output", e);
         }
     }
 }

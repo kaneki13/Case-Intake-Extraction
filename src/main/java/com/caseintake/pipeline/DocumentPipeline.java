@@ -83,7 +83,8 @@ public class DocumentPipeline {
     /**
      * A document with a {@code .txt} is read as is. Without one, a document with exactly one {@code .pdf} is
      * transcribed first: the transcript is written to the derived dir and becomes the source text. Anything else,
-     * or a blank transcript, is {@code unsupported_format}.
+     * or a blank transcript, is {@code unsupported_format}, and then any earlier transcript of the document is
+     * deleted.
      */
     public ExtractionOutput process(SourceDocument doc, Catalog catalog, ExchangeSource source) {
         SourceText text;
@@ -97,11 +98,13 @@ public class DocumentPipeline {
                     log.accept(doc.id() + ": " + pdfs.size() + " PDF files and no .txt; transcription needs exactly "
                             + "one, so the document is unsupported");
                 }
+                transcripts.delete(doc.id()); // a transcript from an earlier run no longer applies
                 return unsupported(doc, catalog);
             }
             String transcript = transcribe(doc.id(), pdfs.get(0), source);
             if (transcript.isBlank()) {
                 log.accept(doc.id() + ": blank transcript; the document is unsupported");
+                transcripts.delete(doc.id()); // a transcript from an earlier run no longer applies
                 return unsupported(doc, catalog);
             }
             transcripts.write(doc.id(), transcript);

@@ -8,10 +8,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * Duplicate-detection settings (yml {@code duplicates}). Section ids come from configuration, never from code.
  * {@code identitySection}: any differing field there vetoes a pair. {@code requiredSections}: each needs one match.
+ * {@code maxDifferences}: a pair with more differing fields than this, over the whole catalog, is not a duplicate.
  */
 @ConfigurationProperties(prefix = "duplicates")
 public record DuplicateProperties(String identitySection, List<String> requiredSections, int minAgreements,
-                                  int highAgreements, int integerTolerance) {
+                                  int highAgreements, int integerTolerance, int maxDifferences) {
 
     /** Throws IllegalArgumentException (a configuration error, exit 2) when the settings do not fit the catalog. */
     public void validate(Catalog catalog) {
@@ -42,6 +43,10 @@ public record DuplicateProperties(String identitySection, List<String> requiredS
         if (integerTolerance < 0) {
             throw new IllegalArgumentException("duplicates.integer-tolerance must not be negative, got "
                     + integerTolerance);
+        }
+        if (maxDifferences < 0) {
+            throw new IllegalArgumentException("duplicates.max-differences must not be negative, got "
+                    + maxDifferences);
         }
     }
 }

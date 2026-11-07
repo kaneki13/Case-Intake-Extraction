@@ -144,6 +144,96 @@ class ReviewServiceTest {
         assertThat(reviewsDir.resolve("A1.json")).exists();
     }
 
+    /** A clock the test moves forward. */
+    static final class StepClock extends Clock {
+        Instant now = NOW;
+
+        @Override
+        public ZoneOffset getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
+
+    private ReviewService serviceWith(Clock clock) {
+        AppProperties props = new AppProperties(CatalogFixtures.COMMITTED, List.of(tmp.resolve("documents")),
+                tmp.resolve("fixtures"), out, tmp.resolve("derived"), reviewsDir);
+        return new ReviewService(store, catalog, new ExtractionReader(props, MAPPER), clock);
+    }
+
+    @Test
+    void jsonNullValueIsNoValue() {
+        String f = ids.get(0);
+        JsonNode jsonNull = JsonNodeFactory.instance.nullNode();
+
+        assertThat(service.apply("A1", 0, f, req("accept", jsonNull)).review().state())
+                .isEqualTo(ReviewState.ACCEPTED);
+        assertThat(service.apply("A1", 0, f, req("reject", jsonNull)).review().state())
+                .isEqualTo(ReviewState.REJECTED);
+        assertThat(service.apply("A1", 0, f, req("reset", jsonNull)).review()).isNull();
+        assertStatus(() -> service.apply("A1", 0, f, req("edit", jsonNull)), HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void acceptOnAnEditedFieldKeepsTheEditAndWritesNothing() throws Exception {
+        StepClock clock = new StepClock();
+        ReviewService stepping = serviceWith(clock);
+        FieldDef coded = ofType(FieldType.CODED);
+        TextNode code = TextNode.valueOf(coded.options().get(0).code());
+        FieldReview edit = stepping.apply("A1", 0, coded.id(), req("edit", code)).review();
+        byte[] before = Files.readAllBytes(reviewsDir.resolve("A1.json"));
+        clock.now = NOW.plusSeconds(60);
+
+        MergedField accepted = stepping.apply("A1", 0, coded.id(), req("accept", null));
+
+        assertThat(accepted.review()).isEqualTo(edit);
+        assertThat(accepted.model().path("status").asText()).isEqualTo("unknown");
+        assertThat(store.load("A1").get(0, coded.id())).isEqualTo(edit);
+        assertThat(Files.readAllBytes(reviewsDir.resolve("A1.json"))).isEqualTo(before);
+    }
+
+    @Test
+    void rejectOnAnEditedFieldRejectsIt() {
+        FieldDef coded = ofType(FieldType.CODED);
+        service.apply("A1", 0, coded.id(), req("edit", TextNode.valueOf(coded.options().get(0).code())));
+
+        MergedField rejected = service.apply("A1", 0, coded.id(), req("reject", null));
+
+        assertThat(rejected.review()).isEqualTo(new FieldReview(ReviewState.REJECTED, null, NOW));
+        assertThat(store.load("A1").get(0, coded.id())).isEqualTo(rejected.review());
+    }
+
+    @Test
+    void unchangedStateIsNotSaved() throws Exception {
+        String f = ids.get(0);
+        // reset on an unreviewed field writes no file at all
+        assertThat(service.apply("A1", 0, f, req("reset", null)).review()).isNull();
+        assertThat(reviewsDir).doesNotExist();
+
+        StepClock clock = new StepClock();
+        ReviewService stepping = serviceWith(clock);
+        FieldReview accepted = stepping.apply("A1", 0, f, req("accept", null)).review();
+        byte[] before = Files.readAllBytes(reviewsDir.resolve("A1.json"));
+        clock.now = NOW.plusSeconds(60);
+
+        // accepting again is an idempotent confirm: the first decision and its time stay
+        assertThat(stepping.apply("A1", 0, f, req("accept", null)).review()).isEqualTo(accepted);
+        assertThat(stepping.apply("A1", 1, f, req("reset", null)).review()).isNull();
+        assertThat(Files.readAllBytes(reviewsDir.resolve("A1.json"))).isEqualTo(before);
+        // a real change is still saved, with the new time
+        assertThat(stepping.apply("A1", 0, f, req("reject", null)).review())
+                .isEqualTo(new FieldReview(ReviewState.REJECTED, null, NOW.plusSeconds(60)));
+    }
+
     @Test
     void editIsValidatedAgainstCatalog400() {
         FieldDef integer = ofType(FieldType.INTEGER);

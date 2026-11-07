@@ -7,16 +7,16 @@ It builds on [HLD.md](HLD.md), [LLD.md](LLD.md) and [FRONTEND.md](FRONTEND.md). 
 
 | # | Decision |
 |---|---|
-| Q1 | **Image-only PDFs are transcribed first, then extracted as text.** A document that has a `.pdf` but no `.txt` goes to a new `transcribe` stage. That stage sends the PDF to a vision model and asks for a faithful plain-text transcription: `[illegible]` where unreadable, no corrections, no guesses. The transcript is written to `derived/<ID>.txt` and becomes the document's source text. Case finding and extraction then run unchanged on it, so offsets, validation, confidence rules, replay and UI highlighting all keep working. The document gets the flag `transcribed_from_image`. A generic rule caps every value from a transcribed source at the second confidence level. An empty or failed transcription gives `unsupported_format`. |
+| Q1 | **Image-only PDFs are transcribed first, then extracted as text.** A document that has a `.pdf` but no `.txt` goes to a new `transcribe` stage. That stage sends the PDF to a vision model and asks for a faithful plain-text transcription: `[illegible]` where unreadable, no corrections, no guesses. The transcript is written to `derived/<ID>.txt` and becomes the document's source text. Case finding and extraction then run unchanged on it, so offsets, validation, confidence rules, replay and UI highlighting all keep working. The document gets the flag `transcribed_from_image`. A generic rule caps every value from a transcribed source at the second confidence level. A blank transcript gives `unsupported_format` (and any earlier `derived/<ID>.txt` is deleted); a transcription that is still invalid after the repair retry fails the document (exit 1). |
 | Q2 | Transcription model: `llm.models.transcription` (`gemini-3.6-flash`). The PDF is sent inline as base64 (`inline_data`, `application/pdf`). `app.documents` gains `documents/stretch`. A full stretch run costs about 9 calls. |
 | Q3 | **Duplicates are found deterministically after all documents are processed.** Every case is compared with every other case in another document, field by field over the catalog. Any contradiction in the identity section rules a pair out. A pair is a duplicate when it has at least N agreeing fields and at least one agreement in each required section. The section ids and thresholds live in `application.yml`; no field ids are written in code. Groups are built by union-find. Confidence and a reason string are generated. The result is `out/duplicates.json`, which replay rebuilds. |
-| Q4 | `out/duplicates.json` matches `schema/duplicates.schema.json` exactly. `GET /api/duplicates` adds the matched case pair, which the server recomputes with the same detector. |
+| Q4 | `out/duplicates.json` matches `schema/duplicates.schema.json` exactly. `GET /api/duplicates` adds the matched case pair, which the server recomputes with the same detector. Final-review ruling: the response is `{integerTolerance, groups: [...]}` so the UI comparator uses the backend's tolerance. |
 | Q5 | Route `/duplicates` lists the groups. `/duplicates/:index` shows three columns: document A's text, a comparison table, and document B's text. A UI comparator gives each field one of `match`, `differ`, `one-sided` or `both-absent`, each with its own CSS class, icon and text. Clicking a row highlights that field's quote in both texts. The document rail gets a "Duplicates (n)" link. |
 | Q6 | **Reviews are stored in `reviews/<ID>.json`, which is git-ignored.** Writes are atomic (temp file, then rename). `out/` is never touched, so replay and the schema stay intact. The API merges reviews into its responses. |
-| Q7 | PATCH body is `{action: accept\|reject\|edit\|reset, value?}`. An edit is validated against the catalog and returns 400 (problem+json) if it fails. Unknown ids return 404. `reset` undoes a review. |
+| Q7 | PATCH body is `{action: accept\|reject\|edit\|reset, value?}`. An edit is validated against the catalog and returns 400 (problem+json) if it fails. Unknown ids return 404. `reset` undoes a review. A JSON `null` value counts as no value. Final-review ruling: accept on an edited field keeps the edit (idempotent confirm, no state change); reject on an edited field is allowed, and the UI asks "Discard manual edit?" first. A request that changes nothing writes nothing. |
 | Q8 | Progress is `fields_reviewed / total_fields × 100` over all cases of a document. Reviewed means accepted, rejected or edited. The header shows a bar and the rail shows a ring per document. A document with no cases shows "Nothing to review". |
 | Q9 / Q13–Q18 | **Keyboard model.** ↑/↓ move between fields only while focus is inside the fields pane; normal scrolling works in both panes. On a selected field, Enter or typing starts an edit. Text and number fields: the first typed character replaces the value. Coded, date, multi and list fields: their control opens (typeahead for coded). Enter inside the editor saves, then selection moves to the next unreviewed field. Esc cancels an edit; with no edit open, Esc clears the selection. There are no letter shortcuts (`j`/`k` are removed). Buttons: Accept this, Reject this and Reset on the selected row and in the inspector; Accept all and Reject all in the fields-pane header. Keys: `Alt+A` / `Alt+R` for this field, `Alt+Shift+A` / `Alt+Shift+R` for all fields. Accept and reject also move to the next unreviewed field. |
-| Q16 | Bulk actions apply to the current case and only to unreviewed fields; manual edits are never overwritten. Reject all asks for confirmation. One atomic bulk endpoint handles them. |
+| Q16 | Bulk actions apply to the current case and only to unreviewed fields; manual edits are never overwritten. Reject all asks for confirmation. One atomic bulk endpoint handles them. Final-review ruling: when a summary filter or Risky only is active, the buttons read "Accept N shown" / "Reject N shown" and apply only to the shown unreviewed fields (sent as `fieldIds`); with no filter they apply to the whole case. |
 | Q19 | Accepting an `unknown` or `conflict` field confirms it, and it counts as reviewed. Accept all includes these fields. |
 | Q10 | Clicking a quote to select its field already works and stays as it is. Selection stays in the URL (`?field=`), and keyboard actions use the same selection. |
 | Q11 | Local drafts are replaced by server-side edits. Edited fields show a "Manual edit" badge (✎, blue background) next to the struck-through model value. Accepted fields show ✓ accepted; rejected fields show ⊘ rejected with the value struck through. |
@@ -45,6 +45,7 @@ It builds on [HLD.md](HLD.md), [LLD.md](LLD.md) and [FRONTEND.md](FRONTEND.md). 
   - `min-agreements: 5`
   - `high-agreements: 8`
   - `integer-tolerance: 1`
+  - `max-differences: 4` (final-review ruling: a pair with more `DIFFER` fields over the whole catalog is rejected; S01/S02 have 2, D01/S04 have 8)
 - `ValueComparator.compare(FieldDef, FieldResult a, FieldResult b) → Comparison {MATCH, DIFFER, ONE_SIDED, BOTH_ABSENT}`. Only `extracted` values count as present. Rules:
 
   | Type | Equal when |
@@ -59,11 +60,11 @@ It builds on [HLD.md](HLD.md), [LLD.md](LLD.md) and [FRONTEND.md](FRONTEND.md). 
 
 - `DuplicateDetector.detect(List<ExtractionOutput>, Catalog, DuplicateProperties) → DuplicateReport(List<DuplicateGroup> groups, List<CasePair> pairs)`.
   - Compare every case pair from different documents.
-  - Reject a pair if any field in the identity section is `DIFFER`.
+  - Reject a pair if any field in the identity section is `DIFFER`, or if more than `max-differences` fields are `DIFFER`.
   - Accept a pair when agreements ≥ `min-agreements` and every required section has at least one `MATCH`.
   - Confidence is `high` when agreements ≥ `high-agreements`, otherwise `medium`.
   - Build groups with union-find over accepted pairs, sorted by document id.
-  - The reason is generated from the matched values, in catalog order, up to 6 of them, for example `same: EW; 81; female; digoxin; 2026-01-05; …`.
+  - The reason is generated from the matched values, in catalog order, up to 6 of them, joined with `; `, for example `Same patient and event: EW; 81; female; digoxin; 0.25; mg`.
 - `DuplicatesWriter` writes `out/duplicates.json` as `{groups:[{document_ids, confidence, reason}]}`. The file is always written, with an empty `groups` list when there are none. `ExtractCommand` and `ReplayCommand` run the detector after all documents. Replay compares this file as well.
 
 ### 2.3 Reviews
@@ -105,10 +106,10 @@ It builds on [HLD.md](HLD.md), [LLD.md](LLD.md) and [FRONTEND.md](FRONTEND.md). 
   - The existing ignore rules (open menus and dialogs, modifiers other than Alt) still apply.
   - After a save, accept or reject, the selection moves to the next unreviewed visible field.
 - **Duplicates UI:**
-  - `lib/compare.ts` has `compareFieldValues(field, a, b) → 'match'|'differ'|'one-sided'|'both-absent'`, using the same rules as `ValueComparator`, and `comparisonClass(state)`.
+  - `lib/compare.ts` has `compareFieldValues(field, a, b) → 'match'|'differ'|'one-sided'|'both-absent'`, using the same rules as `ValueComparator` with the `integerTolerance` from `GET /api/duplicates` (no frontend constant), and `comparisonClass(state)`.
   - `DuplicatesPage` lists the groups. `DuplicateCompare` is the three-column view.
   - `DocumentTextPane({detail, caseIndex, fieldId})` is a prop-driven variant of the document view, so both sides highlight the same field.
-  - Each state is shown with an icon and text as well as colour: ✓ green for match, ✗ red for differ, ◌ neutral for one-sided, · muted for both-absent.
+  - Each state is shown with an icon and a visible word as well as colour: ✓ Match (green), ✗ Differ (red), ◌ One side only (neutral), — Neither (muted). A click anywhere on a row selects its field (the row has the click handler; the label button keeps keyboard access).
 
 ## 4. Implementation plan
 

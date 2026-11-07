@@ -30,7 +30,11 @@ class DuplicateDetectorTest {
             .filter(f -> ALL.contains(f.sectionId())).count();
 
     private static DuplicateProperties props(int min, int high) {
-        return new DuplicateProperties("patient", REQUIRED, min, high, 1);
+        return props(min, high, 4);
+    }
+
+    private static DuplicateProperties props(int min, int high, int maxDifferences) {
+        return new DuplicateProperties("patient", REQUIRED, min, high, 1, maxDifferences);
     }
 
     /** A value for the type; the same seed gives the same value, a different seed a different one. */
@@ -103,6 +107,47 @@ class DuplicateDetectorTest {
 
         assertThat(report.groups()).isEmpty();
         assertThat(report.pairs()).isEmpty();
+    }
+
+    /**
+     * The D01/S04 shape without the identity veto: the patient string is present on one side only, the rest of the
+     * patient agrees, one drug field and every event field agree, and the other five drug fields differ.
+     */
+    private static List<ExtractionOutput> manyDifferences() {
+        var a = fields(ALL, 1);
+        var b = fields(ALL, 1);
+        b.put(firstOfType("patient", FieldType.STRING).id(), unknown());
+        List<FieldDef> drug = CATALOG.fieldsInSection("drug");
+        for (FieldDef f : drug.subList(1, drug.size())) {
+            set(b, f, 2);
+        }
+        return List.of(one("A", a), one("B", b));
+    }
+
+    @Test
+    void moreDifferencesThanMaximumRejectEvenWithoutIdentityContradiction() {
+        assertThat(CATALOG.fieldsInSection("drug")).hasSize(6);
+
+        // five differing fields: allowed at a maximum of 5, rejected at 4 (the application.yml setting)
+        assertThat(DuplicateDetector.detect(manyDifferences(), CATALOG, props(5, 8, 5)).groups()).hasSize(1);
+        var report = DuplicateDetector.detect(manyDifferences(), CATALOG, props(5, 8, 4));
+
+        assertThat(report.groups()).isEmpty();
+        assertThat(report.pairs()).isEmpty();
+    }
+
+    @Test
+    void twoNonIdentityDifferencesAreStillGrouped() {
+        // the S01/S02 shape: two fields outside the identity section differ, everything else agrees
+        var a = fields(ALL, 1);
+        var b = fields(ALL, 1);
+        set(b, firstOfType("drug", FieldType.DATE), 2);
+        set(b, firstOfType("event", FieldType.DATE), 2);
+
+        var report = DuplicateDetector.detect(List.of(one("A", a), one("B", b)), CATALOG, props(5, 8, 4));
+
+        assertThat(report.groups()).hasSize(1);
+        assertThat(report.pairs().get(0).agreements()).isEqualTo(ALL_FIELDS - 2);
     }
 
     @Test
@@ -189,26 +234,29 @@ class DuplicateDetectorTest {
             }
         }
         assertThat(report.groups().get(0).reason())
-                .isEqualTo("Same patient and event: " + String.join(", ", expected.subList(0, 6)));
+                .isEqualTo("Same patient and event: " + String.join("; ", expected.subList(0, 6)));
     }
 
     @Test
     void unknownSectionInConfigurationIsRejected() {
-        var bad = new DuplicateProperties("nope", REQUIRED, 5, 8, 1);
+        var bad = new DuplicateProperties("nope", REQUIRED, 5, 8, 1, 4);
         assertThatThrownBy(() -> DuplicateDetector.detect(List.of(), CATALOG, bad))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("nope");
-        var badRequired = new DuplicateProperties("patient", List.of("patient", "zzz"), 5, 8, 1);
+        var badRequired = new DuplicateProperties("patient", List.of("patient", "zzz"), 5, 8, 1, 4);
         assertThatThrownBy(() -> DuplicateDetector.detect(List.of(), CATALOG, badRequired))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("zzz");
     }
 
     @Test
     void invalidThresholdsAreRejected() {
-        assertThatThrownBy(() -> new DuplicateProperties("patient", REQUIRED, 0, 8, 1).validate(CATALOG))
+        assertThatThrownBy(() -> new DuplicateProperties("patient", REQUIRED, 0, 8, 1, 4).validate(CATALOG))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new DuplicateProperties("patient", REQUIRED, 5, 4, 1).validate(CATALOG))
+        assertThatThrownBy(() -> new DuplicateProperties("patient", REQUIRED, 5, 4, 1, 4).validate(CATALOG))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new DuplicateProperties("patient", REQUIRED, 5, 8, -1).validate(CATALOG))
+        assertThatThrownBy(() -> new DuplicateProperties("patient", REQUIRED, 5, 8, -1, 4).validate(CATALOG))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new DuplicateProperties("patient", REQUIRED, 5, 8, 1, -1).validate(CATALOG))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("duplicates.max-differences");
+        new DuplicateProperties("patient", REQUIRED, 5, 8, 1, 0).validate(CATALOG);
     }
 }

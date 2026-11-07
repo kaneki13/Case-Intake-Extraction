@@ -30,7 +30,7 @@ Command names are matched case-insensitively (`Locale.ROOT`). An option given wi
 | `--out=<dir>` | replay | output dir (default `out`); used by tests |
 | `--derived=<dir>` | replay | transcript dir (default `app.derived`, i.e. `derived`); used by tests together with `--out`, so a test replay never writes the committed `derived/` |
 
-Exit codes: 0 means every document was written. 1 means one or more documents failed (listed on stderr). 2 means a configuration error (unknown command, missing key, blank model id, including `llm.models.transcription`, blank option value, bad catalog).
+Exit codes: 0 means every document was written. 1 means one or more documents failed (listed on stderr), or, in extract, duplicate detection failed after the run (for example an unreadable out/ file; the message is printed as `duplicate detection failed: …`). 2 means a configuration error (unknown command, missing key, blank model id, including `llm.models.transcription`, blank option value, bad catalog, invalid `duplicates` settings, which are validated before any document). Replay reports any failure outside a document, including one in duplicate detection, as a configuration error (2).
 
 ### 1.2 `application.yml`
 
@@ -357,13 +357,13 @@ record ExtractionOutput(String documentId, String catalogVersion, String model, 
 `DocumentSource.list(List<Path> dirs) → List<SourceDocument(String id, Optional<Path> txt, List<Path> others)>`. It reads one directory level per configured dir, groups files by basename, and sorts by id.
 
 `DocumentPipeline(PromptBuilder, caseFindingModel, extractionModel, transcriptionModel, TranscriptStore, log)`; `process(SourceDocument, Catalog, ExchangeSource) → ExtractionOutput`:
-1. Source text. If `txt` is present it is the source text. Otherwise the document's `others` with extension `.pdf` (case-insensitive) are counted: none, or more than one, gives `flags=[unsupported_format]`, `cases=[]`, no model call (several PDFs are logged).
-2. Transcription, for exactly one PDF: exchange `transcribe` (§7.4), with the repair retry. A blank transcript (whitespace only) gives `flags=[unsupported_format]`, `cases=[]`, and no further call; nothing is written to `derived/`. Otherwise `TranscriptStore.write(id, transcript)` writes `<app.derived>/<ID>.txt` (UTF-8, exactly the transcript), and `SourceText.of(id, transcript)` is the source text, so provenance offsets index the transcript.
+1. Source text. If `txt` is present it is the source text. Otherwise the document's `others` with extension `.pdf` (case-insensitive) are counted: none, or more than one, gives `flags=[unsupported_format]`, `cases=[]`, no model call (several PDFs are logged), and deletes any `derived/<ID>.txt` left by an earlier run.
+2. Transcription, for exactly one PDF: exchange `transcribe` (§7.4), with the repair retry. A blank transcript (whitespace only) gives `flags=[unsupported_format]`, `cases=[]`, and no further call; nothing is written to `derived/`, and a stale `derived/<ID>.txt` from an earlier run is deleted (`TranscriptStore.delete`), so the API never shows a transcript the output no longer uses. A transcription that is still invalid after the repair retry fails the document (exit 1); its derived file is left as it was. Otherwise `TranscriptStore.write(id, transcript)` writes `<app.derived>/<ID>.txt` (UTF-8, exactly the transcript), and `SourceText.of(id, transcript)` is the source text, so provenance offsets index the transcript.
 3. Case finding, with the stage 1 repair retry.
 4. For each kept case `i`: extraction exchange `extract-case-<i>` → `FieldAssembler`, with the repair retry. For a transcribed document the hints carry `sourceTranscribed=true` (§9.3) and the flags gain `transcribed_from_image`.
 5. Return the output. `ExtractCommand` and `ReplayCommand` write it with `OutputWriter` and collect a `RunReport`.
 
-`TranscriptStore(Path derivedDir)` has `write(id, text)` (temp file, then rename) and `read(id) → Optional<String>`; both validate the id against `DocumentId.PATTERN`. Replay reads the transcribe exchange from the fixture like any stage, so it rewrites `derived/<ID>.txt` byte for byte; the PDF itself is read only for a live call.
+`TranscriptStore(Path derivedDir)` has `write(id, text)` (temp file, then rename), `read(id) → Optional<String>` and `delete(id)` (no error when absent); all validate the id against `DocumentId.PATTERN`. Replay reads the transcribe exchange from the fixture like any stage, so it rewrites `derived/<ID>.txt` byte for byte; the PDF itself is read only for a live call.
 
 `ReplayCommand` is wired with `FixtureExchangeSource` and never creates an `LlmClient`; `run(catalog, outDir, derivedDir, only)` takes the transcript dir explicitly (`--derived`, default `app.derived`). `ExtractCommand` is wired with `RecordingExchangeSource` and writes transcripts to `app.derived`; it fails with exit code 2 when no `LlmClient` is available, when the client's `credential()` is not set (the message names its `settingName`), or when any of the three model ids is blank.
 
@@ -374,7 +374,7 @@ record ExtractionOutput(String documentId, String catalogVersion, String model, 
 | `GET /api/catalog` | `CatalogController` | returns `catalog.raw()` |
 | `GET /api/documents` | `DocumentService.list()` | one `DocumentSummary(id, title, caseCount, flags, reviewCounts, progress)` per `out/*.json`, sorted by id. `reviewCounts = {conflict, unknown, byConfidence: {<catalog level>: n}}` summed over all cases (used by the UI rail; see FRONTEND.md §4.2). `progress` is described in §12.1. |
 | `GET /api/documents/{id}` | `DocumentService.get(id)` | `DocumentDetail(id, title, text, extraction, reviews, progress)`. `text` is the `.txt`, else the transcript `<app.derived>/<ID>.txt`, else null. `extraction` is the out/ file unchanged; `reviews` and `progress` are described in §12.1 |
-| `GET /api/duplicates` | `DuplicatesController` | recomputed on every request with `DuplicateDetector` over all `out/*.json` (via `ExtractionReader`, `duplicates.json` excluded; no cache). Returns `DuplicateGroupView[]`: `{documentIds, confidence, reason, pairs: [{a: {id, caseIndex}, b: {id, caseIndex}, agreements}]}`. `documentIds`, `confidence`, `reason` equal the groups in `out/duplicates.json`; `pairs` lists every accepted case pair inside the group in detector order (a group of 3 documents has up to 3 pairs). `[]` when there are none. A corrupt out file or an invalid `duplicates` configuration is a 500 `ProblemDetail` whose detail names no path. |
+| `GET /api/duplicates` | `DuplicatesController` | recomputed on every request with `DuplicateDetector` over all `out/*.json` (via `ExtractionReader`, `duplicates.json` excluded; no cache). Returns `DuplicatesView` `{integerTolerance, groups}`: `integerTolerance` is `duplicates.integer-tolerance`, so the UI comparator uses the detector's rule; each group is a `DuplicateGroupView` `{documentIds, confidence, reason, pairs: [{a: {id, caseIndex}, b: {id, caseIndex}, agreements}]}`. `documentIds`, `confidence`, `reason` equal the groups in `out/duplicates.json`; `pairs` lists every accepted case pair inside the group in detector order (a group of 3 documents has up to 3 pairs). `groups` is `[]` when there are none. A corrupt out file or an invalid `duplicates` configuration is a 500 `ProblemDetail` whose detail names no path. |
 | `PATCH /api/documents/{id}/cases/{caseIndex}/fields/{fieldId}` | `ReviewController` → `ReviewService.apply` | body `{"action": "accept"\|"reject"\|"edit"\|"reset", "value"?: <json>}`; returns one `MergedField` |
 | `PATCH /api/documents/{id}/cases/{caseIndex}/fields` | `ReviewController` → `ReviewService.applyBulk` | body `{"action": "accept"\|"reject", "fieldIds"?: [..]}`; returns `MergedField[]` for the fields it changed |
 
@@ -413,14 +413,15 @@ Reviewers accept, reject, edit or reset each extracted field. Decisions live in 
 | `{id}` matches the `DocumentId` pattern | 400 |
 | `out/<id>.json` exists | 404 |
 | `action` is one of the allowed values (single: accept, reject, edit, reset; bulk: accept, reject), lower case | 400 |
-| single only: `value` present for `edit`, absent for every other action (an explicit `null` counts as present) | 400 |
+| single only: `value` present for `edit`, absent for every other action (an explicit JSON `null` counts as absent, so `{"action":"accept","value":null}` is accepted and `edit` with `null` is a 400) | 400 |
 | `caseIndex` is within the out/ file's `cases` array | 404 |
 | `fieldId` (or every entry of `fieldIds`) is a catalog field id | 404, before anything is written |
 | `edit`: `FieldValidator.validate(fieldDef, value)` passes | 400, detail `Invalid value for field <id>: <validator message>` |
 
 A non-integer `caseIndex` or an unreadable body is Spring's standard 400. All errors are `application/problem+json`.
 
-- Single PATCH replaces whatever review the field had (an accept after an edit drops the edit).
+- Single PATCH: `reject` and `edit` replace whatever review the field had (a reject after an edit drops the edit; the UI asks "Discard manual edit?" first). `accept` on an edited field is an idempotent confirm: the edit and its time are kept and returned unchanged. `accept` on an accepted field and `reject` on a rejected field likewise keep the first decision and its time. `reset` removes the review.
+- Nothing is saved when the result equals the stored review: an idempotent accept or reject, or a `reset` on an unreviewed field, writes no file (and creates no `reviews/` directory).
 - Bulk PATCH changes only fields with no review in that case: all catalog fields, or only the listed ones (duplicates ignored). It never overwrites an edit, accept or reject. The whole bulk runs under the document lock and is one save. It returns `MergedField`s for the changed fields only, in catalog order; nothing to change gives `[]`.
 
 **Response shapes**
@@ -486,6 +487,7 @@ Pure Java post-processing after all documents (extract and replay). It names no 
 | `min-agreements` | `5` | Fewest matching fields for an accepted pair (at least 1). |
 | `high-agreements` | `8` | Matching fields for `high` confidence (at least `min-agreements`). |
 | `integer-tolerance` | `1` | Integers are equal when they differ by at most this (not negative). |
+| `max-differences` | `4` | Most `DIFFER` fields, over the whole catalog, an accepted pair may have (not negative). S01/S02 differ in 2 fields; D01/S04 in 8. |
 
 `validate(catalog)` runs before any document is processed: an unknown section id or an out-of-range value is a configuration error (exit 2) for extract and replay.
 
@@ -503,9 +505,9 @@ Pure Java post-processing after all documents (extract and replay). It names no 
 **Algorithm** (`DuplicateDetector.detect(outputs, catalog, props) -> DuplicateReport(groups, pairs)`):
 1. Sort documents by id; for each pair of different documents, each case pair in ascending case index.
 2. Compare every catalog field. Any `DIFFER` in the identity section rejects the pair (same drug and reaction, different patient).
-3. agreements = number of `MATCH`. Accept when agreements >= `min-agreements` and every required section has a `MATCH`.
+3. agreements = number of `MATCH`, differences = number of `DIFFER`. Accept when differences <= `max-differences`, agreements >= `min-agreements` and every required section has a `MATCH`. `max-differences` is defence in depth for pairs whose identity fields happen to be absent on one side.
 4. Pair confidence is `high` when agreements >= `high-agreements`, else `medium`.
 5. Groups: union-find over the document ids of accepted pairs. `document_ids` sorted; groups sorted by first id. Group confidence is the lowest of its pairs (`high` > `medium`).
-6. Reason: `Same patient and event: ` plus up to 6 matched values in catalog order, from the strongest pair (most agreements, first on ties), joined with `, `; lists join with `/`. A group with more than one document pair appends ` (+N more document pairs)`.
+6. Reason: `Same patient and event: ` plus up to 6 matched values in catalog order, from the strongest pair (most agreements, first on ties), joined with `; ` (STRETCH §2.2); lists join with `/`. A group with more than one document pair appends ` (+N more document pairs)`.
 
-**Output**: `DuplicatesWriter` writes `out/duplicates.json` as `{"groups":[{"document_ids","confidence","reason"}]}`, pretty-printed (same printer as `OutputWriter`), UTF-8, trailing newline, valid against `schema/duplicates.schema.json`. It is always written, with an empty `groups` array when there are none. `detectAndWrite(outDir, ...)` reads every `*.json` in the run's out dir except `duplicates.json` after the run, so a partial `--only` run still reflects all committed outputs; it runs even when a document failed, and the exit code is unchanged. Replay into `--out=<dir>` writes `<dir>/duplicates.json`; `ReplayGoldenTest` compares it byte for byte.
+**Output**: `DuplicatesWriter` writes `out/duplicates.json` as `{"groups":[{"document_ids","confidence","reason"}]}`, pretty-printed (same printer as `OutputWriter`), UTF-8, trailing newline, valid against `schema/duplicates.schema.json`. It is always written, with an empty `groups` array when there are none. `detectAndWrite(outDir, ...)` reads every `*.json` in the run's out dir except `duplicates.json` after the run, so a partial `--only` run still reflects all committed outputs; it runs even when a document failed, and the exit code is unchanged unless detection itself fails (§1.1). Replay into `--out=<dir>` writes `<dir>/duplicates.json`; `ReplayGoldenTest` compares it byte for byte.

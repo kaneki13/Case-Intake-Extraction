@@ -42,6 +42,16 @@ public final class TranscriptStore {
         }
     }
 
+    /** Deletes the transcript of {@code id} if there is one, so a document that is no longer transcribed has none. */
+    public void delete(String id) {
+        Path file = file(id);
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot delete transcript " + file, e);
+        }
+    }
+
     /** The transcript of {@code id}, or empty when none has been written. */
     public Optional<String> read(String id) {
         Path file = file(id);

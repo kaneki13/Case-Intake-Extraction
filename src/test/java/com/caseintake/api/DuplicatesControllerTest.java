@@ -57,7 +57,7 @@ class DuplicatesControllerTest {
     }
 
     private static DuplicateProperties props() {
-        return new DuplicateProperties("patient", REQUIRED, 5, 8, 1);
+        return new DuplicateProperties("patient", REQUIRED, 5, 8, 1, 4);
     }
 
     private MockMvc mvc(DuplicateProperties props) {
@@ -105,17 +105,18 @@ class DuplicatesControllerTest {
 
         mvc(props()).perform(get("/api/duplicates"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].documentIds[0]").value("A1"))
-                .andExpect(jsonPath("$[0].documentIds[1]").value("B2"))
-                .andExpect(jsonPath("$[0].confidence").value("high"))
-                .andExpect(jsonPath("$[0].reason").value(containsString("Same patient and event: ")))
-                .andExpect(jsonPath("$[0].pairs.length()").value(1))
-                .andExpect(jsonPath("$[0].pairs[0].a.id").value("A1"))
-                .andExpect(jsonPath("$[0].pairs[0].a.caseIndex").value(0))
-                .andExpect(jsonPath("$[0].pairs[0].b.id").value("B2"))
-                .andExpect(jsonPath("$[0].pairs[0].b.caseIndex").value(1))
-                .andExpect(jsonPath("$[0].pairs[0].agreements").isNumber());
+                .andExpect(jsonPath("$.integerTolerance").value(1))
+                .andExpect(jsonPath("$.groups.length()").value(1))
+                .andExpect(jsonPath("$.groups[0].documentIds[0]").value("A1"))
+                .andExpect(jsonPath("$.groups[0].documentIds[1]").value("B2"))
+                .andExpect(jsonPath("$.groups[0].confidence").value("high"))
+                .andExpect(jsonPath("$.groups[0].reason").value(containsString("Same patient and event: ")))
+                .andExpect(jsonPath("$.groups[0].pairs.length()").value(1))
+                .andExpect(jsonPath("$.groups[0].pairs[0].a.id").value("A1"))
+                .andExpect(jsonPath("$.groups[0].pairs[0].a.caseIndex").value(0))
+                .andExpect(jsonPath("$.groups[0].pairs[0].b.id").value("B2"))
+                .andExpect(jsonPath("$.groups[0].pairs[0].b.caseIndex").value(1))
+                .andExpect(jsonPath("$.groups[0].pairs[0].agreements").isNumber());
     }
 
     @Test
@@ -125,13 +126,13 @@ class DuplicatesControllerTest {
         doc("C3", 1);
 
         mvc(props()).perform(get("/api/duplicates"))
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].documentIds.length()").value(3))
-                .andExpect(jsonPath("$[0].pairs.length()").value(3))
-                .andExpect(jsonPath("$[0].pairs[0].a.id").value("A1"))
-                .andExpect(jsonPath("$[0].pairs[0].b.id").value("B2"))
-                .andExpect(jsonPath("$[0].pairs[2].a.id").value("B2"))
-                .andExpect(jsonPath("$[0].pairs[2].b.id").value("C3"));
+                .andExpect(jsonPath("$.groups.length()").value(1))
+                .andExpect(jsonPath("$.groups[0].documentIds.length()").value(3))
+                .andExpect(jsonPath("$.groups[0].pairs.length()").value(3))
+                .andExpect(jsonPath("$.groups[0].pairs[0].a.id").value("A1"))
+                .andExpect(jsonPath("$.groups[0].pairs[0].b.id").value("B2"))
+                .andExpect(jsonPath("$.groups[0].pairs[2].a.id").value("B2"))
+                .andExpect(jsonPath("$.groups[0].pairs[2].b.id").value("C3"));
     }
 
     @Test
@@ -141,7 +142,17 @@ class DuplicatesControllerTest {
 
         mvc(props()).perform(get("/api/duplicates"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.groups.length()").value(0));
+    }
+
+    @Test
+    void integerToleranceComesFromTheSettings() throws Exception {
+        DuplicateProperties wide = new DuplicateProperties("patient", REQUIRED, 5, 8, 7, 4);
+
+        mvc(wide).perform(get("/api/duplicates"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.integerTolerance").value(7))
+                .andExpect(jsonPath("$.groups.length()").value(0));
     }
 
     @Test
@@ -150,7 +161,8 @@ class DuplicatesControllerTest {
 
         mvc(props()).perform(get("/api/duplicates"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.integerTolerance").value(1))
+                .andExpect(jsonPath("$.groups.length()").value(0));
     }
 
     @Test
@@ -165,7 +177,7 @@ class DuplicatesControllerTest {
         JsonNode file = MAPPER.readTree(Files.readString(out.resolve(DuplicatesWriter.FILE_NAME)));
         String body = mvc(props()).perform(get("/api/duplicates")).andExpect(status().isOk()).andReturn()
                 .getResponse().getContentAsString();
-        JsonNode api = MAPPER.readTree(body);
+        JsonNode api = MAPPER.readTree(body).path("groups");
 
         JsonNode groups = file.path("groups");
         assertThat(api.size()).isEqualTo(groups.size());
@@ -191,7 +203,7 @@ class DuplicatesControllerTest {
     @Test
     void invalidDuplicatesConfigIsAClearPathFree500() throws Exception {
         doc("A1", 1);
-        DuplicateProperties bad = new DuplicateProperties("nope", REQUIRED, 5, 8, 1);
+        DuplicateProperties bad = new DuplicateProperties("nope", REQUIRED, 5, 8, 1, 4);
 
         mvc(bad).perform(get("/api/duplicates"))
                 .andExpect(status().isInternalServerError())

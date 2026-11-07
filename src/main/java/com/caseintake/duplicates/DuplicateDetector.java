@@ -21,6 +21,7 @@ import java.util.TreeMap;
  */
 public final class DuplicateDetector {
     static final String REASON_PREFIX = "Same patient and event: ";
+    static final String REASON_SEPARATOR = "; ";
     private static final int MAX_REASON_VALUES = 6;
 
     private DuplicateDetector() {}
@@ -57,6 +58,7 @@ public final class DuplicateDetector {
     private static CasePair compare(String docA, CaseOutput a, String docB, CaseOutput b, Catalog catalog,
                                     DuplicateProperties props, ValueComparator comparator) {
         int agreements = 0;
+        int differences = 0;
         Set<String> matchedSections = new LinkedHashSet<>();
         List<String> values = new ArrayList<>();
         for (FieldDef field : catalog.fields()) {
@@ -65,6 +67,9 @@ public final class DuplicateDetector {
             Comparison c = comparator.compare(field, ra, rb);
             if (c == Comparison.DIFFER && field.sectionId().equals(props.identitySection())) {
                 return null;
+            }
+            if (c == Comparison.DIFFER) {
+                differences++;
             }
             if (c == Comparison.MATCH) {
                 agreements++;
@@ -75,11 +80,12 @@ public final class DuplicateDetector {
                 }
             }
         }
-        if (agreements < props.minAgreements() || !matchedSections.containsAll(props.requiredSections())) {
+        if (differences > props.maxDifferences() || agreements < props.minAgreements()
+                || !matchedSections.containsAll(props.requiredSections())) {
             return null;
         }
         String confidence = agreements >= props.highAgreements() ? "high" : "medium";
-        String reason = REASON_PREFIX + String.join(", ", values.subList(0, Math.min(values.size(), MAX_REASON_VALUES)));
+        String reason = REASON_PREFIX + String.join(REASON_SEPARATOR, values.subList(0, Math.min(values.size(), MAX_REASON_VALUES)));
         return new CasePair(docA, a.caseIndex(), docB, b.caseIndex(), agreements, confidence, reason);
     }
 

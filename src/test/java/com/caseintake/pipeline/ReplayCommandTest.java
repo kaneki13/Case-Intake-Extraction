@@ -82,7 +82,7 @@ class ReplayCommandTest {
                 .run(CatalogFixtures.COMMITTED, replayed, root.resolve("replayed-derived"), Set.of());
         assertThat(Files.readString(replayed.resolve("duplicates.json"))).contains("\"groups\"");
 
-        var bad = new com.caseintake.duplicates.DuplicateProperties("nope", List.of("patient"), 5, 8, 1);
+        var bad = new com.caseintake.duplicates.DuplicateProperties("nope", List.of("patient"), 5, 8, 1, 4);
         int code = new ReplayCommand(app(CatalogFixtures.COMMITTED), bad, err).execute(
                 new DefaultApplicationArguments("--out=" + root.resolve("bad-out")));
         assertThat(code).isEqualTo(2);

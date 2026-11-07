@@ -41,6 +41,20 @@ class TranscriptStoreTest {
     }
 
     @Test
+    void deleteRemovesTheTranscriptAndIgnoresAMissingOne() {
+        TranscriptStore store = new TranscriptStore(tmp);
+        store.write("A", "text");
+
+        store.delete("A");
+        store.delete("A");
+        new TranscriptStore(tmp.resolve("absent")).delete("A");
+
+        assertThat(store.read("A")).isEmpty();
+        assertThat(tmp.resolve("absent")).doesNotExist();
+        assertThatThrownBy(() -> store.delete("../x")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void invalidIdIsRejected() {
         TranscriptStore store = new TranscriptStore(tmp);
         assertThatThrownBy(() -> store.write("../x", "t")).isInstanceOf(IllegalArgumentException.class);

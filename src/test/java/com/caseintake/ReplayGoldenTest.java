@@ -36,8 +36,10 @@ class ReplayGoldenTest {
      */
     static RunReport replay(Path catalog, Path outDir, Path derivedDir) {
         var log = new ByteArrayOutputStream();
-        var app = new AppProperties(catalog, List.of(Path.of("documents"), Path.of("documents/stretch")),
-                Path.of("fixtures"), COMMITTED_OUT, COMMITTED_DERIVED, Path.of("reviews"));
+        // the document dirs, fixtures and duplicate settings are those of application.yml, as replay.sh uses them
+        AppProperties yml = DuplicateFixtures.app();
+        var app = new AppProperties(catalog, yml.documents(), yml.fixtures(), COMMITTED_OUT, COMMITTED_DERIVED,
+                yml.reviews());
         PrintStream original = System.err;
         ReplayCommand command;
         System.setErr(new PrintStream(log, true, StandardCharsets.UTF_8));

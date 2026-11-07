@@ -205,6 +205,32 @@ class DocumentPipelineTest {
     }
 
     @Test
+    void blankTranscriptDeletesAStaleTranscript() throws Exception {
+        Files.createDirectories(derived);
+        Files.writeString(derived.resolve("B.txt"), "an earlier transcript");
+        ScriptedSource source = new ScriptedSource(transcription(" \n\t ", 0));
+
+        ExtractionOutput out = pipeline.process(pdfDoc("B"), CATALOG, source);
+
+        assertThat(out.flags()).containsExactly("unsupported_format");
+        assertThat(derived.resolve("B.txt")).doesNotExist();
+    }
+
+    @Test
+    void unsupportedPdfOnlyDocumentDeletesAStaleTranscript() throws Exception {
+        Files.createDirectories(derived);
+        Files.writeString(derived.resolve("Y.txt"), "an earlier transcript");
+        Path a = Files.write(dir.resolve("Y.pdf"), PDF_BYTES);
+        Path b = Files.write(dir.resolve("Y.PDF"), PDF_BYTES);
+
+        ExtractionOutput out = pipeline.process(new SourceDocument("Y", Optional.empty(), List.of(a, b)), CATALOG,
+                new ScriptedSource());
+
+        assertThat(out.flags()).containsExactly("unsupported_format");
+        assertThat(derived.resolve("Y.txt")).doesNotExist();
+    }
+
+    @Test
     void invalidTranscriptionIsRepairedWithAMachineMessage() throws Exception {
         ScriptedSource source = new ScriptedSource("{\"transcript\":\"" + "x" + "\"}", TRANSCRIBED, NO_CASE);
 

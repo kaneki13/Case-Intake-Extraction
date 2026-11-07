@@ -291,6 +291,19 @@ class ExtractCommandTest {
     }
 
     @Test
+    void duplicateDetectionFailureAfterTheRunExitsOneNotTwo() throws Exception {
+        Files.createDirectories(out);
+        Files.writeString(out.resolve("ZZ.json"), "{not json");
+        FakeClient client = new FakeClient(NO_CASE);
+
+        int code = command(KEY, client).run(Set.of("E1"), Optional.empty(), false);
+
+        assertThat(code).isEqualTo(1);
+        assertThat(out.resolve("E1.json")).exists();
+        assertThat(stderr()).contains("duplicate detection failed: ").doesNotContain("Configuration error");
+    }
+
+    @Test
     void blankStageOptionExitsTwo() {
         FakeClient client = new FakeClient(ONE_CASE, EMPTY_FIELDS);
         for (String arg : List.of("--stage=", "--stage", "--stage= ")) {

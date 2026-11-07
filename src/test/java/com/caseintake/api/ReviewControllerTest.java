@@ -140,7 +140,6 @@ class ReviewControllerTest {
         expectProblem(patchField(base, "{\"action\":\"edit\"}"), 400);
         expectProblem(patchField(base, "{\"action\":\"edit\",\"value\":null}"), 400);
         expectProblem(patchField(base, "{\"action\":\"accept\",\"value\":3}"), 400);
-        expectProblem(patchField(base, "{\"action\":\"accept\",\"value\":null}"), 400);
         expectProblem(patchField(base, "{\"action\":\"approve\"}"), 400);
         expectProblem(patchField(base, "{}"), 400);
         expectProblem(patchField(base, "not json"), 400);
@@ -150,6 +149,38 @@ class ReviewControllerTest {
         expectProblem(patchField("..%2Fpom/cases/0/fields/" + integer.id(), "{\"action\":\"accept\"}"), 400);
         mvc.perform(get("/api/documents/A1")).andExpect(jsonPath("$.progress.reviewed").value(0));
         org.assertj.core.api.Assertions.assertThat(reviews).doesNotExist();
+    }
+
+    @Test
+    void jsonNullValueIsNoValue() throws Exception {
+        String base = "A1/cases/0/fields/" + ids.get(0);
+        patchField(base, "{\"action\":\"accept\",\"value\":null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.review.state").value("accepted"));
+        patchField(base, "{\"action\":\"reject\",\"value\":null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.review.state").value("rejected"));
+        patchField(base, "{\"action\":\"reset\",\"value\":null}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.review").value(nullValue()));
+        expectProblem(patchField(base, "{\"action\":\"edit\",\"value\":null}"), 400);
+    }
+
+    @Test
+    void acceptOnAnEditedFieldKeepsTheEdit() throws Exception {
+        FieldDef multi = ofType(FieldType.CODED_MULTI);
+        String code = multi.options().get(0).code();
+        String base = "A1/cases/0/fields/" + multi.id();
+        patchField(base, "{\"action\":\"edit\",\"value\":[\"" + code + "\"]}").andExpect(status().isOk());
+
+        patchField(base, "{\"action\":\"accept\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.review.state").value("edited"))
+                .andExpect(jsonPath("$.review.value[0]").value(code));
+        patchField(base, "{\"action\":\"reject\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.review.state").value("rejected"))
+                .andExpect(jsonPath("$.review.value").doesNotExist());
     }
 
     @Test

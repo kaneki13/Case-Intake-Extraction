@@ -16,7 +16,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Duplicate groups, recomputed with the detector over every out/ file on each request; nothing is cached. */
+/**
+ * Duplicate groups, recomputed with the detector over every out/ file on each request; nothing is cached. The
+ * response also carries the integer tolerance, so the UI compares values with the same rule as the detector.
+ */
 @RestController
 @RequestMapping("/api/duplicates")
 public class DuplicatesController {
@@ -31,7 +34,7 @@ public class DuplicatesController {
     }
 
     @GetMapping
-    public List<DuplicateGroupView> list() {
+    public DuplicatesView list() {
         List<ExtractionOutput> outputs = new ArrayList<>();
         for (String id : reader.ids()) {
             JsonNode tree = reader.read(id);
@@ -48,7 +51,8 @@ public class DuplicatesController {
             throw new DocumentApiException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Duplicate detection is misconfigured: " + e.getMessage(), e);
         }
-        return report.groups().stream().map(g -> view(g, report.pairs())).toList();
+        return new DuplicatesView(props.integerTolerance(),
+                report.groups().stream().map(g -> view(g, report.pairs())).toList());
     }
 
     private static DuplicateGroupView view(DuplicateGroup group, List<CasePair> pairs) {

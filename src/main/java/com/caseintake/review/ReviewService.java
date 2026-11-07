@@ -59,7 +59,8 @@ public class ReviewService {
     public MergedField apply(String id, int caseIndex, String fieldId, ReviewRequest request) {
         JsonNode extraction = reader.read(id);
         Action action = parseAction(request.action(), Set.of(Action.values()));
-        boolean hasValue = request.value() != null;
+        // an absent value and a JSON null are both "no value"
+        boolean hasValue = request.value() != null && !request.value().isNull();
         if (action == Action.EDIT && !hasValue) {
             throw badRequest("An edit needs a value");
         }
@@ -68,24 +69,39 @@ public class ReviewService {
         }
         JsonNode caseNode = caseAt(extraction, id, caseIndex);
         FieldDef def = catalog.field(fieldId).orElseThrow(() -> notFound("No catalog field with id " + fieldId));
-        FieldReview review = switch (action) {
-            case ACCEPT -> new FieldReview(ReviewState.ACCEPTED, null, now());
-            case REJECT -> new FieldReview(ReviewState.REJECTED, null, now());
-            case RESET -> null;
-            case EDIT -> {
-                ValidationResult result = FieldValidator.validate(def, request.value());
-                if (!result.ok()) {
-                    throw badRequest("Invalid value for field " + fieldId + ": " + result.error());
-                }
-                yield new FieldReview(ReviewState.EDITED, request.value(), now());
+        if (action == Action.EDIT) {
+            ValidationResult result = FieldValidator.validate(def, request.value());
+            if (!result.ok()) {
+                throw badRequest("Invalid value for field " + fieldId + ": " + result.error());
             }
-        };
-        storeAccess(id, () -> store.locked(id, () -> {
+        }
+        FieldReview review = storeAccess(id, () -> store.locked(id, () -> {
             DocumentReviews reviews = store.load(id);
-            store.save(id, reviews.with(caseIndex, Collections.singletonMap(fieldId, review), fieldOrder));
-            return null;
+            FieldReview current = reviews.get(caseIndex, fieldId);
+            FieldReview next = next(action, current, request.value());
+            if (!Objects.equals(next, current)) {
+                store.save(id, reviews.with(caseIndex, Collections.singletonMap(fieldId, next), fieldOrder));
+            }
+            return next;
         }));
         return new MergedField(fieldId, caseNode.path("fields").get(fieldId), review);
+    }
+
+    /**
+     * The review after {@code action}. Accept on an edited field confirms the edit and keeps it; accept or reject on a
+     * field already in that state keeps the first decision and its time; reset leaves no review. When the result
+     * equals {@code current}, nothing is saved.
+     */
+    private FieldReview next(Action action, FieldReview current, JsonNode value) {
+        ReviewState currentState = current == null ? null : current.state();
+        return switch (action) {
+            case ACCEPT -> currentState == ReviewState.ACCEPTED || currentState == ReviewState.EDITED
+                    ? current : new FieldReview(ReviewState.ACCEPTED, null, now());
+            case REJECT -> currentState == ReviewState.REJECTED
+                    ? current : new FieldReview(ReviewState.REJECTED, null, now());
+            case RESET -> null;
+            case EDIT -> new FieldReview(ReviewState.EDITED, value, now());
+        };
     }
 
     /** Applies accept or reject to the unreviewed fields among the requested ones (all catalog fields by default). */

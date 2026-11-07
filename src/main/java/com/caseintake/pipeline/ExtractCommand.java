@@ -131,7 +131,9 @@ public class ExtractCommand {
             // after all documents, over every output now in out/ (a partial --only run still reflects the rest)
             DuplicatesWriter.detectAndWrite(app.out(), catalog, duplicates);
         } catch (RuntimeException e) {
-            return configError("duplicate detection failed: " + e.getMessage());
+            // the settings were validated above, so this is a runtime failure (an unreadable output, a write error)
+            err.println("duplicate detection failed: " + e.getMessage());
+            return 1;
         }
         return report.exitCode();
     }

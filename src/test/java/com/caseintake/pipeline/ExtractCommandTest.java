@@ -94,7 +94,8 @@ class ExtractCommandTest {
     }
 
     AppProperties app() {
-        return new AppProperties(CatalogFixtures.COMMITTED, List.of(docs), fixtures, out, derived);
+        return new AppProperties(CatalogFixtures.COMMITTED, List.of(docs), fixtures, out, derived,
+                out.resolveSibling("reviews"));
     }
 
     static LlmProperties llm() {

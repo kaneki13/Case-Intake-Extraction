@@ -7,6 +7,7 @@ app:
   fixtures: fixtures
   out: out
   derived: derived                # transcripts of image-only PDFs (written by extract, rebuilt by replay)
+  reviews: reviews                # reviewer decisions, reviews/<ID>.json; git-ignored, never touches out/
 llm:
   provider: gemini                # selects the LlmClient bean
   models:

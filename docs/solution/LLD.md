@@ -41,6 +41,7 @@ app:
   fixtures: fixtures
   out: out
   derived: derived                # transcripts of image-only PDFs (written by extract, rebuilt by replay)
+  reviews: reviews                # reviewer decisions, reviews/<ID>.json; git-ignored, never touches out/ (§12.1)
 llm:
   provider: gemini                # selects the LlmClient bean
   models:
@@ -59,7 +60,7 @@ llm:
     timeout: 300s                 # thinking models can take over two minutes under load
 ```
 
-Bound to `@ConfigurationProperties` records `AppProperties(catalog, documents, fixtures, out, derived)` and `LlmProperties` (`Models(caseFinding, extraction, transcription)`). Transcription uses `gemini-3.6-flash`, which reads PDFs sent inline (STRETCH §1 Q2). Model ids were verified with `GET /v1beta/models` on 2026-11-07. Case finding uses the newest stable Flash-Lite. Extraction uses `gemini-3.6-flash`. The newest stable Flash, `gemini-3.8-flash`, was overloaded (HTTP 503) and its free daily quota was spent on retries. `gemini-3.7-flash` is billed to the same 3.8 quota, so it was no alternative.
+Bound to `@ConfigurationProperties` records `AppProperties(catalog, documents, fixtures, out, derived, reviews)` and `LlmProperties` (`Models(caseFinding, extraction, transcription)`). Transcription uses `gemini-3.6-flash`, which reads PDFs sent inline (STRETCH §1 Q2). Model ids were verified with `GET /v1beta/models` on 2026-11-07. Case finding uses the newest stable Flash-Lite. Extraction uses `gemini-3.6-flash`. The newest stable Flash, `gemini-3.8-flash`, was overloaded (HTTP 503) and its free daily quota was spent on retries. `gemini-3.7-flash` is billed to the same 3.8 quota, so it was no alternative.
 
 ## 2. Packages and responsibilities
 
@@ -371,12 +372,76 @@ record ExtractionOutput(String documentId, String catalogVersion, String model, 
 | Endpoint | Handler | Notes |
 |---|---|---|
 | `GET /api/catalog` | `CatalogController` | returns `catalog.raw()` |
-| `GET /api/documents` | `DocumentService.list()` | one `DocumentSummary(id, title, caseCount, flags, reviewCounts)` per `out/*.json`, sorted by id. `reviewCounts = {conflict, unknown, byConfidence: {<catalog level>: n}}` summed over all cases (used by the UI rail; see FRONTEND.md §4.2). |
-| `GET /api/documents/{id}` | `DocumentService.get(id)` | `DocumentDetail(id, title, text, extraction)`. `text` is the `.txt`, else the transcript `<app.derived>/<ID>.txt`, else null |
+| `GET /api/documents` | `DocumentService.list()` | one `DocumentSummary(id, title, caseCount, flags, reviewCounts, progress)` per `out/*.json`, sorted by id. `reviewCounts = {conflict, unknown, byConfidence: {<catalog level>: n}}` summed over all cases (used by the UI rail; see FRONTEND.md §4.2). `progress` is described in §12.1. |
+| `GET /api/documents/{id}` | `DocumentService.get(id)` | `DocumentDetail(id, title, text, extraction, reviews, progress)`. `text` is the `.txt`, else the transcript `<app.derived>/<ID>.txt`, else null. `extraction` is the out/ file unchanged; `reviews` and `progress` are described in §12.1 |
+| `PATCH /api/documents/{id}/cases/{caseIndex}/fields/{fieldId}` | `ReviewController` → `ReviewService.apply` | body `{"action": "accept"\|"reject"\|"edit"\|"reset", "value"?: <json>}`; returns one `MergedField` |
+| `PATCH /api/documents/{id}/cases/{caseIndex}/fields` | `ReviewController` → `ReviewService.applyBulk` | body `{"action": "accept"\|"reject", "fieldIds"?: [..]}`; returns `MergedField[]` for the fields it changed |
 
 - `{id}` must match `^[A-Za-z0-9_-]{1,32}$`; anything else gets a 400. An unknown id gets a 404. Both are `ProblemDetail`.
 - `TitleExtractor.title(String text)`: the first line matching `^(?i)subject:\s*(.+)$`, otherwise the first non-blank line, trimmed and cut to 120 characters. Null text gives `"(no text layer)"`. The list uses the same text (`.txt`, else transcript) for titles.
 - The service reads files on each request; there is no cache, since the total is about 12 small files.
+- `ExtractionReader` is the one read path for out/ (`ids()`, `read(id)` with the 400/404/500 rules above); both `DocumentService` and `ReviewService` use it and neither ever writes to out/.
+
+### 12.1 Reviews (`review`)
+
+Reviewers accept, reject, edit or reset each extracted field. Decisions live in `<app.reviews>/<ID>.json` (default `reviews/`, git-ignored), never in out/, so `replay.sh` and `schema/extraction.schema.json` are unaffected. The API merges them into its responses.
+
+**Storage** (`ReviewStore`). One file per document, pretty-printed, cases in ascending index order and fields in catalog order (fields no longer in the catalog follow, untouched):
+
+```json
+{
+  "document_id" : "D01",
+  "cases" : {
+    "0" : {
+      "patient_sex" : { "state" : "accepted", "at" : "2026-11-08T10:15:30Z" },
+      "suspect_drug_route" : { "state" : "edited", "value" : "oral", "at" : "2026-11-08T10:16:02Z" }
+    }
+  }
+}
+```
+
+- `state` is `accepted`, `rejected` or `edited`; `value` is present exactly when the state is `edited`; `at` is an ISO-8601 UTC instant from the injected `Clock`.
+- A missing file means no reviews. A file that cannot be parsed, has an unknown state, or names another document fails loudly (500), never treated as empty.
+- Saves write a temp file in the same directory and `Files.move(…, ATOMIC_MOVE, REPLACE_EXISTING)`. Every load-modify-save runs under a per-document `ReentrantLock` (`ReviewStore.locked`), so concurrent PATCHes on one document both persist. The directory is created on the first save.
+- `reset` removes that field's review; a case left with no reviews is dropped from `cases`; the file itself stays.
+
+**Requests** (`ReviewService`). Checks run in this order:
+
+| Check | Failure |
+|---|---|
+| `{id}` matches the `DocumentId` pattern | 400 |
+| `out/<id>.json` exists | 404 |
+| `action` is one of the allowed values (single: accept, reject, edit, reset; bulk: accept, reject), lower case | 400 |
+| single only: `value` present for `edit`, absent for every other action (an explicit `null` counts as present) | 400 |
+| `caseIndex` is within the out/ file's `cases` array | 404 |
+| `fieldId` (or every entry of `fieldIds`) is a catalog field id | 404, before anything is written |
+| `edit`: `FieldValidator.validate(fieldDef, value)` passes | 400, detail `Invalid value for field <id>: <validator message>` |
+
+A non-integer `caseIndex` or an unreadable body is Spring's standard 400. All errors are `application/problem+json`.
+
+- Single PATCH replaces whatever review the field had (an accept after an edit drops the edit).
+- Bulk PATCH changes only fields with no review in that case: all catalog fields, or only the listed ones (duplicates ignored). It never overwrites an edit, accept or reject. The whole bulk runs under the document lock and is one save. It returns `MergedField`s for the changed fields only, in catalog order; nothing to change gives `[]`.
+
+**Response shapes**
+
+```json
+// MergedField (single PATCH; bulk returns an array of these)
+{ "fieldId": "patient_sex",
+  "model": { "status": "extracted", "value": "female", "confidence": "medium", "provenance": [ … ] },
+  "review": { "state": "accepted", "at": "2026-11-08T10:15:30Z" } }
+// after reset: "review": null. For edited: "review": { "state": "edited", "value": <json>, "at": "…" }
+
+// GET /api/documents/{id} adds
+"reviews": { "0": { "patient_sex": { "state": "accepted", "at": "2026-11-08T10:15:30Z" } } },
+"progress": { "reviewed": 1, "total": 16 }
+
+// GET /api/documents adds per document
+"progress": { "reviewed": 1, "total": 16 }
+```
+
+- `model` is the out/ field result unchanged (null if the output has no entry for that catalog field).
+- `progress.total` = number of cases × number of catalog fields; `progress.reviewed` = stored reviews for existing cases and current catalog fields. A document with no cases is `{0, 0}`.
+- **Stale reviews** (case index ≥ the number of cases, or a field id no longer in the catalog) are kept on disk but ignored in `reviews`, `progress` and bulk actions; they are never an error.
 
 ## 13. Repo scripts
 

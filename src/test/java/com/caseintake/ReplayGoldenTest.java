@@ -37,7 +37,7 @@ class ReplayGoldenTest {
     static RunReport replay(Path catalog, Path outDir, Path derivedDir) {
         var log = new ByteArrayOutputStream();
         var app = new AppProperties(catalog, List.of(Path.of("documents")), Path.of("fixtures"), COMMITTED_OUT,
-                COMMITTED_DERIVED);
+                COMMITTED_DERIVED, Path.of("reviews"));
         PrintStream original = System.err;
         ReplayCommand command;
         System.setErr(new PrintStream(log, true, StandardCharsets.UTF_8));

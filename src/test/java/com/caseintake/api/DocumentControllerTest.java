@@ -9,11 +9,14 @@ import com.caseintake.catalog.Catalog;
 import com.caseintake.catalog.CatalogLoader;
 import com.caseintake.config.AppProperties;
 import com.caseintake.pipeline.TranscriptStore;
+import com.caseintake.review.ReviewService;
+import com.caseintake.review.ReviewStore;
 import com.caseintake.support.CatalogFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,8 +40,11 @@ class DocumentControllerTest {
         catalog = CatalogLoader.load(CatalogFixtures.COMMITTED);
         derived = tmp.resolve("derived");
         AppProperties props = new AppProperties(CatalogFixtures.COMMITTED, List.of(docs), tmp.resolve("fixtures"), out,
-                derived);
-        DocumentService service = new DocumentService(props, catalog, new ObjectMapper());
+                derived, tmp.resolve("reviews"));
+        ExtractionReader reader = new ExtractionReader(props, new ObjectMapper());
+        ReviewService reviews = new ReviewService(new ReviewStore(tmp.resolve("reviews")), catalog, reader,
+                Clock.systemUTC());
+        DocumentService service = new DocumentService(props, catalog, reader, reviews);
         mvc = MockMvcBuilders.standaloneSetup(new DocumentController(service), new CatalogController(catalog))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();

@@ -2,13 +2,14 @@ package com.caseintake.api;
 
 import com.caseintake.catalog.Catalog;
 import com.caseintake.config.AppProperties;
-import com.caseintake.output.DocumentId;
 import com.caseintake.output.FieldStatus;
 import com.caseintake.pipeline.DocumentSource;
 import com.caseintake.pipeline.SourceDocument;
 import com.caseintake.pipeline.TranscriptStore;
+import com.caseintake.review.FieldReview;
+import com.caseintake.review.Progress;
+import com.caseintake.review.ReviewService;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -19,82 +20,44 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
  * Serves the committed out/ files and the source text: the document's {@code .txt}, else its transcript in the
- * derived dir, else none. Reads files on every request; nothing is cached.
+ * derived dir, else none, merged with the stored reviews and progress. Reads files on every request; nothing is
+ * cached.
  */
 @Service
 public class DocumentService {
-    private static final String DUPLICATES = "duplicates";
-
     private final AppProperties props;
     private final Catalog catalog;
-    private final ObjectMapper mapper;
+    private final ExtractionReader reader;
+    private final ReviewService reviews;
 
-    public DocumentService(AppProperties props, Catalog catalog, ObjectMapper mapper) {
+    public DocumentService(AppProperties props, Catalog catalog, ExtractionReader reader, ReviewService reviews) {
         this.props = props;
         this.catalog = catalog;
-        this.mapper = mapper;
+        this.reader = reader;
+        this.reviews = reviews;
     }
 
     public List<DocumentSummary> list() {
         List<DocumentSummary> result = new ArrayList<>();
-        for (String id : documentIds()) {
-            JsonNode extraction = readExtraction(id);
-            result.add(summarise(id, extraction, TitleExtractor.title(readText(id))));
+        for (String id : reader.ids()) {
+            JsonNode extraction = reader.read(id);
+            Progress progress = reviews.progress(extraction, reviews.current(id, extraction));
+            result.add(summarise(id, extraction, TitleExtractor.title(readText(id)), progress));
         }
         return result;
     }
 
     public DocumentDetail get(String id) {
-        if (!DocumentId.isValid(id)) {
-            throw new DocumentApiException(HttpStatus.BAD_REQUEST,
-                    "Document id must match " + DocumentId.PATTERN.pattern());
-        }
-        if (id.equals(DUPLICATES) || !Files.isRegularFile(outFile(id))) {
-            throw new DocumentApiException(HttpStatus.NOT_FOUND, "No document with id " + id);
-        }
-        JsonNode extraction = readExtraction(id);
+        JsonNode extraction = reader.read(id);
         String text = readText(id);
-        return new DocumentDetail(id, TitleExtractor.title(text), text, extraction);
-    }
-
-    private Path outFile(String id) {
-        return props.out().resolve(id + ".json");
-    }
-
-    private List<String> documentIds() {
-        if (!Files.isDirectory(props.out())) {
-            return List.of();
-        }
-        try (Stream<Path> files = Files.list(props.out())) {
-            return files.filter(Files::isRegularFile)
-                    .map(f -> f.getFileName().toString())
-                    .filter(n -> n.endsWith(".json"))
-                    .map(n -> n.substring(0, n.length() - ".json".length()))
-                    .filter(n -> DocumentId.isValid(n) && !n.equals(DUPLICATES))
-                    .sorted()
-                    .toList();
-        } catch (IOException e) {
-            throw new DocumentApiException(HttpStatus.INTERNAL_SERVER_ERROR, "Cannot list document outputs", e);
-        }
-    }
-
-    private JsonNode readExtraction(String id) {
-        JsonNode root;
-        try {
-            root = mapper.readTree(Files.readString(outFile(id), StandardCharsets.UTF_8));
-        } catch (IOException | RuntimeException e) {
-            throw unreadable(id, "cannot be read as JSON", e);
-        }
-        if (root == null || !root.isObject() || !root.path("cases").isArray()) {
-            throw unreadable(id, "is not an extraction output (no cases array)", null);
-        }
-        return root;
+        Map<Integer, Map<String, FieldReview>> current = reviews.current(id, extraction);
+        return new DocumentDetail(id, TitleExtractor.title(text), text, extraction, current,
+                reviews.progress(extraction, current));
     }
 
     private String readText(String id) {
@@ -128,12 +91,7 @@ public class DocumentService {
         }
     }
 
-    private DocumentApiException unreadable(String id, String why, Throwable cause) {
-        return new DocumentApiException(HttpStatus.INTERNAL_SERVER_ERROR,
-                "Output for document " + id + " " + why, cause);
-    }
-
-    private DocumentSummary summarise(String id, JsonNode extraction, String title) {
+    private DocumentSummary summarise(String id, JsonNode extraction, String title, Progress progress) {
         List<String> flags = new ArrayList<>();
         extraction.path("flags").forEach(f -> flags.add(f.asText()));
         Map<String, Integer> byConfidence = new LinkedHashMap<>();
@@ -146,7 +104,7 @@ public class DocumentService {
                 try {
                     status = FieldStatus.fromJson(field.path("status").asText());
                 } catch (IllegalArgumentException e) {
-                    throw unreadable(id, "has a field with an unrecognised status", null);
+                    throw ExtractionReader.unreadable(id, "has a field with an unrecognised status", null);
                 }
                 switch (status) {
                     case CONFLICT -> conflict++;
@@ -154,7 +112,7 @@ public class DocumentService {
                     case EXTRACTED -> {
                         String level = field.path("confidence").asText();
                         if (!byConfidence.containsKey(level)) {
-                            throw unreadable(id, "has an extracted field with unknown confidence '" + level + "'", null);
+                            throw ExtractionReader.unreadable(id, "has an extracted field with unknown confidence '" + level + "'", null);
                         }
                         byConfidence.merge(level, 1, Integer::sum);
                     }
@@ -162,6 +120,6 @@ public class DocumentService {
             }
         }
         return new DocumentSummary(id, title, extraction.path("cases").size(), flags,
-                new DocumentSummary.ReviewCounts(conflict, unknown, byConfidence));
+                new DocumentSummary.ReviewCounts(conflict, unknown, byConfidence), progress);
     }
 }

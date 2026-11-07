@@ -72,7 +72,7 @@ class ReplayCommandTest {
     }
 
     AppProperties app(Path catalog) {
-        return new AppProperties(catalog, List.of(docs), fixtures, out, derived);
+        return new AppProperties(catalog, List.of(docs), fixtures, out, derived, out.resolveSibling("reviews"));
     }
 
     @Test

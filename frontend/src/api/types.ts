@@ -22,5 +22,23 @@ export interface Extraction {
 export interface ReviewCounts { conflict: number; unknown: number; byConfidence: Record<string, number> }
 export interface DocumentSummary {
   id: string; title: string; caseCount: number; flags: string[]; reviewCounts: ReviewCounts;
+  progress: Progress;
 }
-export interface DocumentDetail { id: string; title: string; text: string | null; extraction: Extraction }
+export interface DocumentDetail {
+  id: string; title: string; text: string | null; extraction: Extraction;
+  reviews: Reviews; progress: Progress;
+}
+export interface Progress { reviewed: number; total: number }
+export type ReviewState = 'accepted' | 'rejected' | 'edited'
+/** A stored review as served: `value` only when edited. */
+export interface Review { state: ReviewState; value?: unknown; at: string }
+/** caseIndex (as a string key) -> fieldId -> review. Only reviewed cases and fields appear. */
+export type Reviews = Record<string, Record<string, Review>>
+export interface MergedField { fieldId: string; model: FieldResult | null; review: Review | null }
+export type ReviewAction = 'accept' | 'reject' | 'edit' | 'reset'
+export type BulkAction = 'accept' | 'reject'
+export interface DuplicateCaseRef { id: string; caseIndex: number }
+export interface DuplicatePair { a: DuplicateCaseRef; b: DuplicateCaseRef; agreements: number }
+export interface DuplicateGroup {
+  documentIds: string[]; confidence: 'high' | 'medium' | 'low'; reason: string; pairs: DuplicatePair[];
+}

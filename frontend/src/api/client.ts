@@ -20,6 +20,15 @@ function shapeProblem(path: string, body: unknown): string | null {
   if (p === '/api/catalog') {
     return isObject(body) && Array.isArray(body.fields) ? null : 'catalog without a "fields" array'
   }
+  if (p === '/api/duplicates') {
+    return Array.isArray(body) ? null : 'duplicates is not an array'
+  }
+  if (/^\/api\/documents\/[^/]+\/cases\/[^/]+\/fields$/.test(p)) {
+    return Array.isArray(body) ? null : 'bulk review answer is not an array'
+  }
+  if (/^\/api\/documents\/[^/]+\/cases\/[^/]+\/fields\/[^/]+$/.test(p)) {
+    return isObject(body) && typeof body.fieldId === 'string' ? null : 'merged field without "fieldId"'
+  }
   if (p === '/api/documents') {
     return Array.isArray(body) ? null : 'document list is not an array'
   }
@@ -51,7 +60,7 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, res.statusText || `HTTP ${res.status}`, res.statusText || `HTTP ${res.status}`)
 }
 
-export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   // Absolute URL so fetch also works outside a browser (tests); same origin as the page.
   const url = typeof location !== 'undefined' ? new URL(path, location.href).toString() : path
   let res: Response
@@ -77,3 +86,13 @@ export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return body as T // structurally checked above (top level only)
 }
+
+export const getJson = <T>(path: string, init?: RequestInit): Promise<T> => requestJson<T>(path, init)
+
+/** Send a JSON body with `method`; same error semantics as getJson. */
+export const sendJson = <T>(method: 'PATCH' | 'POST' | 'PUT', path: string, body: unknown): Promise<T> =>
+  requestJson<T>(path, {
+    method,
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify(body),
+  })

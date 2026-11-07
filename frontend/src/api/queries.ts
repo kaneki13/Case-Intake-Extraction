@@ -1,6 +1,6 @@
 import { QueryClient, useQuery } from '@tanstack/react-query'
 import { ApiError, getJson } from './client'
-import type { Catalog, DocumentDetail, DocumentSummary } from './types'
+import type { Catalog, DocumentDetail, DocumentSummary, DuplicateGroup } from './types'
 
 /** A 4xx answer (missing document, bad request) will not change on a retry. */
 const isClientError = (error: unknown): boolean => error instanceof ApiError && error.status >= 400 && error.status < 500
@@ -31,3 +31,6 @@ export const useDocument = (id: string | undefined) =>
     queryFn: () => getJson<DocumentDetail>(`/api/documents/${encodeURIComponent(id as string)}`),
     enabled: id !== undefined,
   })
+
+export const useDuplicates = () =>
+  useQuery({ queryKey: ['duplicates'], queryFn: () => getJson<DuplicateGroup[]>('/api/duplicates') })

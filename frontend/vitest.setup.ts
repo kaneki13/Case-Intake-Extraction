@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll } from 'vitest'
+import { resetReviews } from './test/msw/handlers'
 import { server } from './test/msw/server'
 
 // Minimal shims for browser APIs jsdom lacks, so Radix Select/Popover and the text's scroll can run.
@@ -24,5 +25,6 @@ beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {
   cleanup()
   server.resetHandlers()
+  resetReviews()
 })
 afterAll(() => server.close())

@@ -59,7 +59,7 @@ describe('DocumentRail', () => {
     // Same names, reversed order: "high" is now the weakest level and must count as risky.
     const catalog: Catalog = { ...catalogFixture, confidence_levels: ['low', 'medium', 'high'] }
     const summary: DocumentSummary = {
-      id: 'R1', title: 'Ranked', caseCount: 1, flags: [],
+      id: 'R1', title: 'Ranked', caseCount: 1, flags: [], progress: { reviewed: 0, total: 16 },
       reviewCounts: { conflict: 1, unknown: 9, byConfidence: { low: 4, medium: 5, high: 2 } },
     }
     server.use(

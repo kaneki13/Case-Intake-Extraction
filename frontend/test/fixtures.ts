@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type {
-  Catalog, CaseOutput, DocumentDetail, DocumentSummary, Extraction, FieldResult, ReviewCounts,
+  Catalog, CaseOutput, DocumentDetail, DocumentSummary, DuplicateGroup, Extraction, FieldResult, ReviewCounts,
 } from '../src/api/types'
 
 const repoRoot = resolve(__dirname, '../..')
@@ -33,8 +33,13 @@ export function reviewCountsOf(extraction: Extraction): ReviewCounts {
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T
 
+const noReviews = (extraction: Extraction) => ({
+  reviews: {},
+  progress: { reviewed: 0, total: extraction.cases.length * catalogFixture.fields.length },
+})
+
 export const D01: DocumentDetail = {
-  id: 'D01', title: 'D01', text: d01Text, extraction: exampleExtraction,
+  id: 'D01', title: 'D01', text: d01Text, extraction: exampleExtraction, ...noReviews(exampleExtraction),
 }
 
 export const NC1: DocumentDetail = {
@@ -44,6 +49,7 @@ export const NC1: DocumentDetail = {
     document_id: 'NC1', catalog_version: exampleExtraction.catalog_version,
     flags: ['no_adverse_event'], cases: [],
   },
+  reviews: {}, progress: { reviewed: 0, total: 0 },
 }
 
 export const PDF1: DocumentDetail = {
@@ -52,6 +58,7 @@ export const PDF1: DocumentDetail = {
     document_id: 'PDF1', catalog_version: exampleExtraction.catalog_version,
     flags: ['unsupported_format'], cases: [],
   },
+  reviews: {}, progress: { reviewed: 0, total: 0 },
 }
 
 function buildMP1(): DocumentDetail {
@@ -66,13 +73,11 @@ function buildMP1(): DocumentDetail {
   const conflict: FieldResult = { status: 'conflict', note: 'Sources disagree (synthetic).' }
   infant.fields[id1] = unknown
   infant.fields[id2] = conflict
-  return {
-    id: 'MP1', title: 'MP1', text: d01Text,
-    extraction: {
-      document_id: 'MP1', catalog_version: exampleExtraction.catalog_version,
-      flags: ['multiple_patients'], cases: [mother, infant],
-    },
+  const extraction: Extraction = {
+    document_id: 'MP1', catalog_version: exampleExtraction.catalog_version,
+    flags: ['multiple_patients'], cases: [mother, infant],
   }
+  return { id: 'MP1', title: 'MP1', text: d01Text, extraction, ...noReviews(extraction) }
 }
 export const MP1: DocumentDetail = buildMP1()
 
@@ -80,6 +85,34 @@ export const documentFixtures: DocumentDetail[] = [D01, NC1, PDF1, MP1]
 
 export const summaryOf = (d: DocumentDetail): DocumentSummary => ({
   id: d.id, title: d.title, caseCount: d.extraction.cases.length,
-  flags: d.extraction.flags ?? [], reviewCounts: reviewCountsOf(d.extraction),
+  flags: d.extraction.flags ?? [], reviewCounts: reviewCountsOf(d.extraction), progress: d.progress,
 })
 export const summaryFixtures: DocumentSummary[] = documentFixtures.map(summaryOf)
+
+/** Two clones of D01 that differ in one identity value (first extracted string field of the first catalog section). */
+function buildDuplicates(): { docs: [DocumentDetail, DocumentDetail]; groups: DuplicateGroup[] } {
+  const section = catalogFixture.sections[0]
+  if (!section) throw new Error('catalog has no section')
+  const base = exampleExtraction.cases[0]
+  const field = catalogFixture.fields.find((f) => {
+    const r = base?.fields[f.id]
+    return f.section === section.id && f.type === 'string' && r?.status === 'extracted' && typeof r.value === 'string'
+  })
+  if (!base || !field) throw new Error('no identity string value to change in the example case')
+  const make = (id: string): DocumentDetail => ({
+    ...clone(D01), id, title: id, extraction: { ...clone(exampleExtraction), document_id: id },
+  })
+  const dupA = make('DUP_A')
+  const dupB = make('DUP_B')
+  const changed = dupB.extraction.cases[0]?.fields[field.id]
+  if (!changed) throw new Error('clone lost the field')
+  changed.value = `${String(changed.value)}X`
+  const groups: DuplicateGroup[] = [{
+    documentIds: ['DUP_A', 'DUP_B'], confidence: 'high', reason: 'Matching identity and event values.',
+    pairs: [{ a: { id: 'DUP_A', caseIndex: 0 }, b: { id: 'DUP_B', caseIndex: 0 }, agreements: catalogFixture.fields.length - 1 }],
+  }]
+  return { docs: [dupA, dupB], groups }
+}
+const dup = buildDuplicates()
+export const duplicateDocFixtures: DocumentDetail[] = dup.docs
+export const duplicateFixtures: DuplicateGroup[] = dup.groups

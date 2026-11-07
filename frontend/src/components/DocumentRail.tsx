@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router'
-import { useCatalog, useDocuments } from '../api/queries'
+import { useCatalog, useDocuments, useDuplicates } from '../api/queries'
 import type { DocumentSummary } from '../api/types'
 import { riskCount } from '../lib/risk'
 import { FlagIcons } from './Flags'
+import { Icon } from './Icon'
 import { ProgressRing } from './ProgressRing'
 import { RiskPill, riskLabel } from './RiskPill'
 import { ErrorCard } from './states/ErrorCard'
@@ -39,7 +40,34 @@ function RailItem({ doc, levels }: { doc: DocumentSummary; levels: string[] }) {
   )
 }
 
-/** Left rail: every document, the active one marked, with case count, flags and risk count. */
+/**
+ * The rail's way to the duplicate review: "Duplicates (n)". The count is left out while it loads; a failed
+ * load says so (the page itself shows the error and its retry).
+ */
+function DuplicatesLink() {
+  const duplicates = useDuplicates()
+  const count = duplicates.data?.length
+  const name = duplicates.isError
+    ? "Duplicates (couldn't load)"
+    : count === undefined ? 'Duplicates' : `Duplicates (${count})`
+  return (
+    <nav aria-label="Duplicate review" className={styles.footer}>
+      <NavLink to="/duplicates" className={styles.duplicates} aria-label={name}>
+        <Icon name="copy" size={16} className={styles.duplicatesIcon} />
+        <span className={styles.duplicatesText}>Duplicates</span>
+        {duplicates.isError ? (
+          <Icon name="alert" size={14} className={styles.duplicatesError} />
+        ) : (
+          count !== undefined && (
+            <span className={styles.duplicatesCount} data-some={count > 0 || undefined}>{count}</span>
+          )
+        )}
+      </NavLink>
+    </nav>
+  )
+}
+
+/** Left rail: every document, the active one marked, with case count, flags and risk count; then the duplicates link. */
 export function DocumentRail() {
   const documents = useDocuments()
   const catalog = useCatalog()
@@ -75,12 +103,15 @@ export function DocumentRail() {
   }
 
   return (
-    <nav aria-label="Documents" className={styles.rail}>
-      <div className={styles.header}>
-        <h2 className={styles.heading}>Documents</h2>
-        {documents.data && <span className={styles.count}>{documents.data.length}</span>}
-      </div>
-      {body}
-    </nav>
+    <div className={styles.rail}>
+      <nav aria-label="Documents" className={styles.documents}>
+        <div className={styles.header}>
+          <h2 className={styles.heading}>Documents</h2>
+          {documents.data && <span className={styles.count}>{documents.data.length}</span>}
+        </div>
+        {body}
+      </nav>
+      <DuplicatesLink />
+    </div>
   )
 }

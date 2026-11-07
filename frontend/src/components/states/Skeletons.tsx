@@ -85,3 +85,23 @@ export function FieldsSkeleton() {
     </Busy>
   )
 }
+
+const GROUP_REASONS = ['74%', '58%', '66%']
+
+/** Shaped like DuplicatesPage cards: document ids + confidence pill, a reason line, a meta line. */
+export function DuplicatesSkeleton() {
+  return (
+    <Busy label="Loading duplicates" className={styles.groups}>
+      {GROUP_REASONS.map((reason, i) => (
+        <div key={i} className={styles.group}>
+          <span className={styles.railTop}>
+            <Bar width="132px" className={styles.thin} />
+            <Bar width="96px" className={styles.pill} />
+          </span>
+          <Bar width={reason} />
+          <Bar width="28%" className={styles.thin} />
+        </div>
+      ))}
+    </Busy>
+  )
+}

@@ -1,0 +1,27 @@
+/*
+ * One class per comparison state (lib/compare.ts comparisonClass). Each sets the row's tint and a
+ * `--tone` that the comparison table uses for the leading marker and the state icon.
+ * Colour is never the only signal: the table also shows an icon and a text for every state.
+ */
+.match {
+  --tone: var(--ok);
+  background: color-mix(in srgb, var(--ok) 7%, transparent);
+}
+
+.differ {
+  --tone: var(--risk);
+  background: color-mix(in srgb, var(--risk) 11%, transparent);
+}
+
+/* Neutral: one report states it, the other does not. Not evidence either way. */
+.oneSided {
+  --tone: var(--muted);
+  background: var(--subtle);
+}
+
+/* Muted: neither report states it. Nothing to compare, so it recedes. */
+.bothAbsent {
+  --tone: var(--muted);
+  background: transparent;
+  color: var(--muted);
+}

@@ -1,0 +1,137 @@
+.pane {
+  min-width: 0;
+  animation: settle var(--dur) var(--ease);
+}
+
+/* Sticky inside its scrolling column: the reviewer always knows which report they are reading. */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s4) var(--s5) var(--s3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.eyebrow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: var(--t13);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.side {
+  color: var(--muted);
+}
+
+.id {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.title {
+  overflow: hidden;
+  font-size: var(--t16);
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.005em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.meta:empty {
+  display: none;
+}
+
+.case {
+  color: var(--muted);
+  font-size: var(--t13);
+  font-weight: 500;
+}
+
+.warning {
+  color: var(--caution);
+  font-size: var(--t13);
+  font-weight: 600;
+}
+
+.noQuote {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--s1);
+  padding: 2px var(--s2) 2px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: var(--t13);
+  font-weight: 500;
+  animation: settle var(--dur) var(--ease);
+}
+
+.noQuoteIcon {
+  font-weight: 700;
+}
+
+/* The source as a readable document, set a step smaller than the single-document view to fit two side by side. */
+.text {
+  /* Room below the last line, so a quote near the end can still be scrolled to the middle. */
+  padding: var(--s5) var(--s5) 96px;
+  font-family: var(--font-doc);
+  font-size: var(--t16);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-optical-sizing: auto;
+}
+
+/* Quote spans are created by SegmentedText with plain class names (same treatment as DocumentView). */
+.text :global(.quote) {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.text :global(.quote.is-selected) {
+  background: var(--accent-tint);
+  text-decoration: underline solid var(--accent);
+  text-decoration-thickness: 2px;
+  border-radius: var(--radius-s);
+  box-shadow: 0 0 0 2px var(--accent-tint);
+}
+
+.text :global(.visually-hidden) {
+  user-select: none;
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane,
+  .noQuote {
+    animation: none;
+  }
+}

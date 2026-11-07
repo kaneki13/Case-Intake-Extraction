@@ -90,7 +90,7 @@ export const summaryOf = (d: DocumentDetail): DocumentSummary => ({
 export const summaryFixtures: DocumentSummary[] = documentFixtures.map(summaryOf)
 
 /** Two clones of D01 that differ in one identity value (first extracted string field of the first catalog section). */
-function buildDuplicates(): { docs: [DocumentDetail, DocumentDetail]; groups: DuplicateGroup[] } {
+function buildDuplicates(): { docs: [DocumentDetail, DocumentDetail]; groups: DuplicateGroup[]; changed: string } {
   const section = catalogFixture.sections[0]
   if (!section) throw new Error('catalog has no section')
   const base = exampleExtraction.cases[0]
@@ -111,8 +111,10 @@ function buildDuplicates(): { docs: [DocumentDetail, DocumentDetail]; groups: Du
     documentIds: ['DUP_A', 'DUP_B'], confidence: 'high', reason: 'Matching identity and event values.',
     pairs: [{ a: { id: 'DUP_A', caseIndex: 0 }, b: { id: 'DUP_B', caseIndex: 0 }, agreements: catalogFixture.fields.length - 1 }],
   }]
-  return { docs: [dupA, dupB], groups }
+  return { docs: [dupA, dupB], groups, changed: field.id }
 }
 const dup = buildDuplicates()
 export const duplicateDocFixtures: DocumentDetail[] = dup.docs
 export const duplicateFixtures: DuplicateGroup[] = dup.groups
+/** The one field whose value differs between DUP_A and DUP_B. */
+export const duplicateChangedFieldId: string = dup.changed

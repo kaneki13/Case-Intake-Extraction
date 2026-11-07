@@ -1,0 +1,181 @@
+{
+  "document_id" : "S03",
+  "catalog_version" : "1.0",
+  "model" : "gemini/gemini-3-flash-preview",
+  "flags" : [ "transcribed_from_image" ],
+  "cases" : [ {
+    "case_index" : 0,
+    "label" : "F.A.C.",
+    "fields" : {
+      "patient_initials" : {
+        "status" : "extracted",
+        "value" : "FAC",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Initials: F.A.C.",
+          "start" : 176,
+          "end" : 192
+        } ],
+        "note" : "Confidence lowered: DERIVED, TRANSCRIBED_SOURCE."
+      },
+      "patient_age_years" : {
+        "status" : "extracted",
+        "value" : 60,
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Age: 60 years",
+          "start" : 205,
+          "end" : 218
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "patient_sex" : {
+        "status" : "extracted",
+        "value" : "male",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Sex: Male",
+          "start" : 228,
+          "end" : 237
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "suspect_drug_name" : {
+        "status" : "extracted",
+        "value" : "enalapril",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Enalapril",
+          "start" : 258,
+          "end" : 267
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "suspect_drug_dose_value" : {
+        "status" : "extracted",
+        "value" : 10.0,
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "10 mg",
+          "start" : 268,
+          "end" : 273
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "suspect_drug_dose_unit" : {
+        "status" : "unknown",
+        "note" : "Model value \"mg\" rejected: quote not found in document."
+      },
+      "suspect_drug_route" : {
+        "status" : "extracted",
+        "value" : "oral",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "by mouth",
+          "start" : 292,
+          "end" : 300
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL, TRANSCRIBED_SOURCE."
+      },
+      "suspect_drug_start_date" : {
+        "status" : "extracted",
+        "value" : "2026-06-10",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Started: 10 June 2026",
+          "start" : 314,
+          "end" : 335
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "event_terms" : {
+        "status" : "extracted",
+        "value" : [ "angioedema", "swelling of the lips", "swelling of the tongue", "swelling of the face" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "swelling of the lips, tongue and face (angioedema)",
+          "start" : 485,
+          "end" : 535
+        } ],
+        "note" : "Confidence lowered: LITERAL_ABSENT, TRANSCRIBED_SOURCE."
+      },
+      "event_onset_date" : {
+        "status" : "extracted",
+        "value" : "2026-06-28",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "28 June 2026: swelling",
+          "start" : 471,
+          "end" : 493
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "event_outcome" : {
+        "status" : "extracted",
+        "value" : "recovered",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "OUTCOME:   Recovered",
+          "start" : 724,
+          "end" : 744
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "seriousness_criteria" : {
+        "status" : "extracted",
+        "value" : [ "hospitalization" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "SERIOUS:   Yes - hospitalisation",
+          "start" : 745,
+          "end" : 777
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL, TRANSCRIBED_SOURCE."
+      },
+      "reporter_type" : {
+        "status" : "extracted",
+        "value" : "physician",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Dr Rui Caldeira",
+          "start" : 790,
+          "end" : 805
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL, TRANSCRIBED_SOURCE."
+      },
+      "report_date" : {
+        "status" : "extracted",
+        "value" : "2026-07-02",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Date of report: 2 July 2026",
+          "start" : 137,
+          "end" : 164
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "country" : {
+        "status" : "extracted",
+        "value" : "PT",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Portugal",
+          "start" : 128,
+          "end" : 136
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      },
+      "concomitant_drugs" : {
+        "status" : "extracted",
+        "value" : [ "metformin" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Metformin",
+          "start" : 411,
+          "end" : 420
+        } ],
+        "note" : "Confidence lowered: TRANSCRIBED_SOURCE."
+      }
+    }
+  } ]
+}

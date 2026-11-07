@@ -1,0 +1,190 @@
+{
+  "document_id" : "S01",
+  "catalog_version" : "1.0",
+  "model" : "gemini/gemini-3.6-flash",
+  "flags" : [ ],
+  "cases" : [ {
+    "case_index" : 0,
+    "label" : "Mrs E.W.",
+    "fields" : {
+      "patient_initials" : {
+        "status" : "extracted",
+        "value" : "EW",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Mrs E.W.",
+          "start" : 372,
+          "end" : 380
+        } ]
+      },
+      "patient_age_years" : {
+        "status" : "extracted",
+        "value" : 81,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "81 years old",
+          "start" : 393,
+          "end" : 405
+        } ]
+      },
+      "patient_sex" : {
+        "status" : "extracted",
+        "value" : "female",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Mrs E.W.",
+          "start" : 372,
+          "end" : 380
+        }, {
+          "quote" : "her mother",
+          "start" : 963,
+          "end" : 973
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_name" : {
+        "status" : "extracted",
+        "value" : "digoxin",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "digoxin",
+          "start" : 428,
+          "end" : 435
+        } ]
+      },
+      "suspect_drug_dose_value" : {
+        "status" : "extracted",
+        "value" : 0.25,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "digoxin 0.25 mg",
+          "start" : 519,
+          "end" : 534
+        } ]
+      },
+      "suspect_drug_dose_unit" : {
+        "status" : "extracted",
+        "value" : "mg",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "digoxin 0.25 mg",
+          "start" : 519,
+          "end" : 534
+        } ]
+      },
+      "suspect_drug_route" : {
+        "status" : "extracted",
+        "value" : "oral",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "by mouth",
+          "start" : 546,
+          "end" : 554
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_start_date" : {
+        "status" : "extracted",
+        "value" : "2026-01-05",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "started on 5 January 2026",
+          "start" : 556,
+          "end" : 581
+        } ]
+      },
+      "event_terms" : {
+        "status" : "extracted",
+        "value" : [ "nausea", "dizziness", "bradycardia" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "feeling very nauseous and dizzy for three days and that her pulse was \"very slow\". We measured a heart rate of 41 beats per minute",
+          "start" : 983,
+          "end" : 1113
+        } ],
+        "note" : "Confidence lowered: LITERAL_ABSENT."
+      },
+      "event_onset_date" : {
+        "status" : "extracted",
+        "value" : "2026-02-13",
+        "confidence" : "low",
+        "provenance" : [ {
+          "quote" : "16 February 2026",
+          "start" : 890,
+          "end" : 906
+        }, {
+          "quote" : "feeling very nauseous and dizzy for three days",
+          "start" : 983,
+          "end" : 1029
+        } ],
+        "note" : "Confidence lowered: LITERAL_ABSENT."
+      },
+      "event_outcome" : {
+        "status" : "extracted",
+        "value" : "recovered",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "the heart rate has returned to normal and that her mother is back home and feeling well",
+          "start" : 1247,
+          "end" : 1334
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "seriousness_criteria" : {
+        "status" : "extracted",
+        "value" : [ "hospitalization" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "digoxin was stopped in hospital",
+          "start" : 1209,
+          "end" : 1240
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "reporter_type" : {
+        "status" : "extracted",
+        "value" : "pharmacist",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "I am a community pharmacist",
+          "start" : 231,
+          "end" : 258
+        }, {
+          "quote" : "Apothekerin",
+          "start" : 1440,
+          "end" : 1451
+        } ]
+      },
+      "report_date" : {
+        "status" : "extracted",
+        "value" : "2026-02-20",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Date: Fri, 20 Feb 2026 16:42:10 +0100",
+          "start" : 172,
+          "end" : 209
+        } ]
+      },
+      "country" : {
+        "status" : "extracted",
+        "value" : "DE",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Freiburg, Germany",
+          "start" : 262,
+          "end" : 279
+        } ]
+      },
+      "concomitant_drugs" : {
+        "status" : "extracted",
+        "value" : [ "bisoprolol", "apixaban" ],
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "bisoprolol 2.5 mg once daily and apixaban 5 mg twice daily",
+          "start" : 598,
+          "end" : 656
+        } ]
+      }
+    }
+  } ]
+}

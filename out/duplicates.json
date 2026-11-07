@@ -1,3 +1,7 @@
 {
-  "groups" : [ ]
+  "groups" : [ {
+    "document_ids" : [ "S01", "S02" ],
+    "confidence" : "high",
+    "reason" : "Same patient and event: EW, 81, female, digoxin, 0.25, mg"
+  } ]
 }

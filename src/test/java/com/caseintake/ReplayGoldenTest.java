@@ -36,8 +36,8 @@ class ReplayGoldenTest {
      */
     static RunReport replay(Path catalog, Path outDir, Path derivedDir) {
         var log = new ByteArrayOutputStream();
-        var app = new AppProperties(catalog, List.of(Path.of("documents")), Path.of("fixtures"), COMMITTED_OUT,
-                COMMITTED_DERIVED, Path.of("reviews"));
+        var app = new AppProperties(catalog, List.of(Path.of("documents"), Path.of("documents/stretch")),
+                Path.of("fixtures"), COMMITTED_OUT, COMMITTED_DERIVED, Path.of("reviews"));
         PrintStream original = System.err;
         ReplayCommand command;
         System.setErr(new PrintStream(log, true, StandardCharsets.UTF_8));
@@ -78,7 +78,7 @@ class ReplayGoldenTest {
         replay(CatalogFixtures.COMMITTED, replayed, replayedDerived);
 
         List<String> committed = jsonFiles(COMMITTED_OUT);
-        assertThat(committed).hasSize(8);
+        assertThat(committed).hasSize(12); // D01-D08 and the stretch documents S01-S04
         assertThat(jsonFiles(replayed)).containsExactlyElementsOf(committed);
         for (String name : committed) {
             assertThat(JSON.readTree(replayed.resolve(name).toFile()))

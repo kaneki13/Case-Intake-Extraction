@@ -17,7 +17,7 @@ class OutputSchemaConformanceTest {
         List<String> catalogIds = new ArrayList<>();
         CatalogFixtures.readCommitted().get("fields").forEach(f -> catalogIds.add(f.get("id").asText()));
         List<String> files = ReplayGoldenTest.jsonFiles(ReplayGoldenTest.COMMITTED_OUT);
-        assertThat(files).hasSize(8);
+        assertThat(files).hasSize(12); // D01-D08 and the stretch documents S01-S04
 
         for (String name : files) {
             var path = ReplayGoldenTest.COMMITTED_OUT.resolve(name);

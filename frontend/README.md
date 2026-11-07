@@ -45,8 +45,8 @@ There are no letter shortcuts: typing always means typing.
 | `Esc` | In the editor | Cancel: the shown value comes back, the editor closes, focus returns to the row. Nothing is recorded. |
 | `Esc` | Anywhere else | Clear the selection. Focus stays on the row. |
 | `Alt+A` / `Alt+R` | Field selected | Accept / reject this field, then move to the next unreviewed visible field. |
-| `Alt+Shift+A` | Anywhere | Accept all unreviewed fields of the case (only the shown ones while a filter is active). |
-| `Alt+Shift+R` | Anywhere | Reject all unreviewed fields of the case (only the shown ones while a filter is active): asks for confirmation first. |
+| `Alt+Shift+A` | Anywhere except an open editor, text field, open list/menu or dialog | Accept all unreviewed fields of the case (only the shown ones while a filter is active). |
+| `Alt+Shift+R` | Anywhere except an open editor, text field, open list/menu or dialog | Reject all unreviewed fields of the case (only the shown ones while a filter is active): asks for confirmation first. |
 
 The buttons do the same: Accept this, Reject this and Reset on the selected row and in the inspector; Accept all and Reject all in the fields-pane header. One review is saved at a time: while a field or bulk review is saving, both sets of buttons and their keys wait. A field selected from the keyboard is scrolled into view and focused, and the document scrolls to its quote. Clicking a quote in the text selects its field and scrolls its row into view.
 

@@ -404,7 +404,7 @@ Nothing from the stretch list is left out: the four documents (with S03 transcri
 
 ## 7. AI tools and how I used them
 
-I used **Claude Code** throughout, with Claude Opus 5.5 as the planning session. And Claude Sonnet 4.8 as the controlling session.
+I used **Claude Code** throughout: Claude Opus 5.5 for the controlling session and the design and heavier tasks, Claude Sonnet 5.5 for most implementer and reviewer subagents, and Claude Haiku 5.5 for small re-reviews.
 
 - **Requirements.** The controlling session grilled me on the brief before any design, and my answers became `docs/solution/HLD.md`. A separate round settled the frontend (`docs/solution/FRONTEND.md` §1).
 - **Design and plan.** Claude wrote the HLD, the LLD and a task-by-task plan (`docs/solution/PLAN.md`, and FRONTEND.md for the UI). They were agreed before any code was written.

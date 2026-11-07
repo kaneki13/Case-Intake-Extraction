@@ -62,7 +62,7 @@ The backend serves the committed `out/`, `documents/`, `derived/` and catalog, a
 | `Enter` | In the editor | Save the edit, then move to the next unreviewed field. |
 | `Esc` | In the editor / elsewhere | Cancel the edit / clear the selection. |
 | `Alt+A` / `Alt+R` | Field selected (not inside an open editor) | Accept / reject this field, then move to the next unreviewed field. |
-| `Alt+Shift+A` / `Alt+Shift+R` | Anywhere | Accept all / reject all unreviewed fields of the case (only the shown ones while a filter is active). Reject asks for confirmation. |
+| `Alt+Shift+A` / `Alt+Shift+R` | Anywhere except an open editor, text field, open list/menu or dialog | Accept all / reject all unreviewed fields of the case (only the shown ones while a filter is active). Reject asks for confirmation. |
 
 Full rules, including when keys are ignored: [frontend/README.md](frontend/README.md#keyboard).
 

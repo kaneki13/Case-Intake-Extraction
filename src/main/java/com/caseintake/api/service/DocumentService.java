@@ -1,4 +1,8 @@
-package com.caseintake.api;
+package com.caseintake.api.service;
+
+import com.caseintake.api.dto.DocumentDetail;
+import com.caseintake.api.dto.DocumentSummary;
+import com.caseintake.api.exception.DocumentApiException;
 
 import com.caseintake.catalog.Catalog;
 import com.caseintake.config.AppProperties;
@@ -20,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -29,18 +34,12 @@ import org.springframework.stereotype.Service;
  * cached.
  */
 @Service
+@RequiredArgsConstructor
 public class DocumentService {
     private final AppProperties props;
     private final Catalog catalog;
     private final ExtractionReader reader;
     private final ReviewService reviews;
-
-    public DocumentService(AppProperties props, Catalog catalog, ExtractionReader reader, ReviewService reviews) {
-        this.props = props;
-        this.catalog = catalog;
-        this.reader = reader;
-        this.reviews = reviews;
-    }
 
     public List<DocumentSummary> list() {
         List<DocumentSummary> result = new ArrayList<>();

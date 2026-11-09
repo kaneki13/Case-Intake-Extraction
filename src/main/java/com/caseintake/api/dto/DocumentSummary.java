@@ -1,4 +1,4 @@
-package com.caseintake.api;
+package com.caseintake.api.dto;
 
 import com.caseintake.review.Progress;
 import java.util.List;

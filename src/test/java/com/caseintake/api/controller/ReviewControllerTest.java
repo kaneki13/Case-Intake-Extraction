@@ -1,4 +1,8 @@
-package com.caseintake.api;
+package com.caseintake.api.controller;
+
+import com.caseintake.api.exception.ApiExceptionHandler;
+import com.caseintake.api.service.DocumentService;
+import com.caseintake.api.service.ExtractionReader;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
@@ -56,7 +60,7 @@ class ReviewControllerTest {
         ReviewService reviewService = new ReviewService(new ReviewStore(reviews), catalog, reader,
                 Clock.fixed(Instant.parse("2026-11-08T10:15:30Z"), ZoneOffset.UTC));
         DocumentService documents = new DocumentService(props, catalog, reader, reviewService);
-        mvc = MockMvcBuilders.standaloneSetup(new DocumentController(documents), new ReviewController(reviewService))
+        mvc = MockMvcBuilders.standaloneSetup(new DocumentController(documents, reviewService))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }

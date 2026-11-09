@@ -1,4 +1,4 @@
-package com.caseintake.api;
+package com.caseintake.api.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

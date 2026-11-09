@@ -1,4 +1,7 @@
-package com.caseintake.api;
+package com.caseintake.api.controller;
+
+import com.caseintake.api.exception.ApiExceptionHandler;
+import com.caseintake.api.service.ExtractionReader;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;

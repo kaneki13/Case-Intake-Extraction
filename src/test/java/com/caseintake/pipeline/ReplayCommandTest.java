@@ -10,6 +10,7 @@ import static com.caseintake.pipeline.DocumentPipelineTest.TEXT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.caseintake.CaseIntakeApplication;
+import com.caseintake.cli.CommandLauncher;
 import com.caseintake.config.AppProperties;
 import com.caseintake.output.OutputWriter;
 import com.caseintake.support.CatalogFixtures;
@@ -61,7 +62,7 @@ class ReplayCommandTest {
         PrintStream original = System.err;
         System.setErr(err);
         try {
-            return CaseIntakeApplication.execute(args);
+            return CommandLauncher.execute(CaseIntakeApplication.class, args);
         } finally {
             System.setErr(original);
         }

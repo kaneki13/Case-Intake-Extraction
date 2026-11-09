@@ -1,7 +1,7 @@
 package com.caseintake.review;
 
-import com.caseintake.api.DocumentApiException;
-import com.caseintake.api.ExtractionReader;
+import com.caseintake.api.exception.DocumentApiException;
+import com.caseintake.api.service.ExtractionReader;
 import com.caseintake.catalog.Catalog;
 import com.caseintake.catalog.FieldDef;
 import com.caseintake.config.AppProperties;
@@ -147,6 +147,7 @@ public class ReviewService {
     public Map<Integer, Map<String, FieldReview>> current(String id, JsonNode extraction) {
         DocumentReviews reviews = storeAccess(id, () -> store.load(id));
         int caseCount = extraction.path("cases").size();
+        // store in form of case No -> field -> Field value review
         Map<Integer, Map<String, FieldReview>> result = new TreeMap<>();
         reviews.cases().forEach((caseIndex, fields) -> {
             if (caseIndex < 0 || caseIndex >= caseCount) {

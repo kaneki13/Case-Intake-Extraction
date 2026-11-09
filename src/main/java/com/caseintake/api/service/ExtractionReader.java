@@ -1,4 +1,6 @@
-package com.caseintake.api;
+package com.caseintake.api.service;
+
+import com.caseintake.api.exception.DocumentApiException;
 
 import com.caseintake.config.AppProperties;
 import com.caseintake.output.DocumentId;
@@ -10,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -18,16 +22,13 @@ import org.springframework.stereotype.Component;
  * 400 for an id that breaks the {@link DocumentId} rule, 404 for no such output, 500 for an unreadable one.
  */
 @Component
+@RequiredArgsConstructor
 public class ExtractionReader {
     private static final String DUPLICATES = "duplicates";
 
     private final AppProperties props;
     private final ObjectMapper mapper;
 
-    public ExtractionReader(AppProperties props, ObjectMapper mapper) {
-        this.props = props;
-        this.mapper = mapper;
-    }
 
     /** The document ids with an output, sorted; {@code duplicates.json} is not a document. */
     public List<String> ids() {
@@ -69,7 +70,7 @@ public class ExtractionReader {
         return root;
     }
 
-    static DocumentApiException unreadable(String id, String why, Throwable cause) {
+    public static DocumentApiException unreadable(String id, String why, Throwable cause) {
         return new DocumentApiException(HttpStatus.INTERNAL_SERVER_ERROR,
                 "Output for document " + id + " " + why, cause);
     }

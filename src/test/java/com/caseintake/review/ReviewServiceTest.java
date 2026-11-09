@@ -3,8 +3,8 @@ package com.caseintake.review;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.caseintake.api.DocumentApiException;
-import com.caseintake.api.ExtractionReader;
+import com.caseintake.api.exception.DocumentApiException;
+import com.caseintake.api.service.ExtractionReader;
 import com.caseintake.catalog.Catalog;
 import com.caseintake.catalog.CatalogLoader;
 import com.caseintake.catalog.FieldDef;

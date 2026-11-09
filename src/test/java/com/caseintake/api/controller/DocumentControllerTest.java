@@ -1,4 +1,8 @@
-package com.caseintake.api;
+package com.caseintake.api.controller;
+
+import com.caseintake.api.exception.ApiExceptionHandler;
+import com.caseintake.api.service.DocumentService;
+import com.caseintake.api.service.ExtractionReader;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -45,7 +49,7 @@ class DocumentControllerTest {
         ReviewService reviews = new ReviewService(new ReviewStore(tmp.resolve("reviews")), catalog, reader,
                 Clock.systemUTC());
         DocumentService service = new DocumentService(props, catalog, reader, reviews);
-        mvc = MockMvcBuilders.standaloneSetup(new DocumentController(service), new CatalogController(catalog))
+        mvc = MockMvcBuilders.standaloneSetup(new DocumentController(service, reviews), new CatalogController(catalog))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }

@@ -1,15 +1,16 @@
-package com.caseintake;
+package com.caseintake.cli;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.caseintake.CaseIntakeApplication.RunMode;
+import com.caseintake.CaseIntakeApplication;
+import com.caseintake.cli.CommandLauncher.RunMode;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
-class CaseIntakeApplicationTest {
+class CommandLauncherTest {
     @Test
     void parsesCommandsAndServerArguments() {
         assertThat(RunMode.parse(new String[0])).isEqualTo(RunMode.SERVER);
@@ -32,7 +33,7 @@ class CaseIntakeApplicationTest {
         System.setErr(new PrintStream(bytes, true, StandardCharsets.UTF_8));
         int code;
         try {
-            code = CaseIntakeApplication.execute(new String[] {"serve"});
+            code = CommandLauncher.execute(CaseIntakeApplication.class, new String[] {"serve"});
         } finally {
             System.setErr(original);
         }

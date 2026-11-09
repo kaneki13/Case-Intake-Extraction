@@ -1,4 +1,4 @@
-package com.caseintake.api;
+package com.caseintake.api.exception;
 
 import org.springframework.http.HttpStatus;
 

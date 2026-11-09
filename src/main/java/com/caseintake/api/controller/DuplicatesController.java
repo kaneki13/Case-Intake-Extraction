@@ -1,4 +1,9 @@
-package com.caseintake.api;
+package com.caseintake.api.controller;
+
+import com.caseintake.api.dto.DuplicateGroupView;
+import com.caseintake.api.dto.DuplicatesView;
+import com.caseintake.api.exception.DocumentApiException;
+import com.caseintake.api.service.ExtractionReader;
 
 import com.caseintake.catalog.Catalog;
 import com.caseintake.duplicates.CasePair;
@@ -11,6 +16,8 @@ import com.caseintake.output.OutputWriter;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.ArrayList;
 import java.util.List;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,17 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
  * response also carries the integer tolerance, so the UI compares values with the same rule as the detector.
  */
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/duplicates")
 public class DuplicatesController {
     private final ExtractionReader reader;
     private final Catalog catalog;
     private final DuplicateProperties props;
-
-    public DuplicatesController(ExtractionReader reader, Catalog catalog, DuplicateProperties props) {
-        this.reader = reader;
-        this.catalog = catalog;
-        this.props = props;
-    }
 
     @GetMapping
     public DuplicatesView list() {

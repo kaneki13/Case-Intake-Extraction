@@ -1,7 +1,0 @@
-{
-  "document_id" : "D06",
-  "catalog_version" : "1.0",
-  "model" : "gemini/gemini-3.5-flash-lite",
-  "flags" : [ "no_adverse_event" ],
-  "cases" : [ ]
-}

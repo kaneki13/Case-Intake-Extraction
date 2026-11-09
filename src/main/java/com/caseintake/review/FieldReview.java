@@ -6,10 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * One reviewer decision. {@code value} is present exactly when the state is {@code edited}; {@code at} is an
- * ISO-8601 UTC instant.
- */
+
 public record FieldReview(
         ReviewState state,
         @JsonInclude(JsonInclude.Include.NON_NULL) JsonNode value,

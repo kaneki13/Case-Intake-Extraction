@@ -17,10 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-/**
- * Read-only access to the committed out/ files for the API. Never writes. Failures are {@link DocumentApiException}s:
- * 400 for an id that breaks the {@link DocumentId} rule, 404 for no such output, 500 for an unreadable one.
- */
+
 @Component
 @RequiredArgsConstructor
 public class ExtractionReader {

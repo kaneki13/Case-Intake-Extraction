@@ -22,10 +22,11 @@ Java 21, Spring Boot 3.5, Maven; React 19 + TypeScript review UI in `frontend/`.
 - `fixtures`: record and replay model exchanges.
 - `extraction`: model JSON to validated cases, confidence policy (incl. `TRANSCRIBED_SOURCE`).
 - `output`: output model and serialisation.
+- `cli`: `CommandLauncher` picks server, extract or replay from the arguments and returns the exit code; `CaseIntakeApplication.main` only delegates to it.
 - `pipeline`: orchestration and CLI commands (`ExtractCommand`, `ReplayCommand`); `TranscriptStore` writes `derived/<ID>.txt` for image-only PDFs.
 - `duplicates`: deterministic duplicate detection after all documents; writes `out/duplicates.json` (LLD §15, thresholds in yml `duplicates`).
 - `review`: review store (`reviews/<ID>.json`), `ReviewService`, progress (LLD §12.1).
-- `api`: REST layer (catalog, documents, duplicates, review PATCH endpoints).
+- `api`: REST layer (catalog, documents, duplicates, review PATCH endpoints), split into `api.controller`, `api.service`, `api.dto`, `api.exception`.
 - `config`: `AppProperties`.
 
 ## Data folders

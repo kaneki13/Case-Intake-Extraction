@@ -10,7 +10,9 @@ Read [HLD.md](HLD.md) first. Decision numbers (D1…D12) refer to HLD §4.
 - Dependencies: `spring-boot-starter-web`, `spring-boot-starter-validation`, Jackson (bundled). Test only: `spring-boot-starter-test` and `com.networknt:json-schema-validator`, used to check outputs against `schema/extraction.schema.json`.
 - Base package `com.caseintake`.
 
-### 1.1 Entry modes (`CaseIntakeApplication.main`)
+### 1.1 Entry modes (`cli.CommandLauncher`)
+
+`CaseIntakeApplication.main` only bootstraps: it delegates to `CommandLauncher.launch(CaseIntakeApplication.class, args)`. `CommandLauncher.RunMode.parse` picks the mode from `args[0]`; `launch` starts the web server or calls `CommandLauncher.execute(source, args)`, which runs the command in a non-web, lazily initialised context (so replay never builds an `LlmClient`) and returns the exit code.
 
 ```
 args[0] == "extract"              → web-application-type=none, run ExtractCommand
@@ -75,8 +77,12 @@ Bound to `@ConfigurationProperties` records `AppProperties(catalog, documents, f
 | `fixtures` | `ExchangeKey`, `Exchange`, `ExchangeSource`, `RecordingExchangeSource`, `FixtureExchangeSource`, `FixtureStore`, `Redactor` | Record and replay model exchanges. |
 | `extraction` | `CaseFinder`, `CaseFinding`, `CaseCandidate`, `MinimumElement`, `DocumentHints`, `FieldAssembler`, `RawFieldAnswer`, `ConfidencePolicy`, `DocumentFlag` | Turn model JSON into validated cases. |
 | `output` | `ExtractionOutput`, `CaseOutput`, `FieldResult`, `Provenance`, `FieldStatus`, `OutputWriter` | Output model and serialisation. |
-| `pipeline` | `DocumentSource`, `SourceDocument`, `DocumentPipeline`, `ExtractCommand`, `ReplayCommand`, `RunReport` | Orchestration and CLI. |
-| `api` | `CatalogController`, `DocumentController`, `DocumentService`, `DocumentSummary`, `DocumentDetail`, `TitleExtractor`, `ApiExceptionHandler` | REST layer. |
+| `pipeline` | `DocumentSource`, `SourceDocument`, `DocumentPipeline`, `ExtractCommand`, `ReplayCommand`, `RunReport` | Orchestration and the extract/replay commands. |
+| `cli` | `CommandLauncher` (with `RunMode`) | Command-line front controller: chooses server, extract or replay from the arguments and maps the outcome to an exit code (§1.1). |
+| `api.controller` | `CatalogController`, `DocumentController`, `DuplicatesController` | REST endpoints (§12). `DocumentController` serves the document reads and the review PATCH endpoints. |
+| `api.service` | `DocumentService`, `ExtractionReader`, `TitleExtractor` | Read-side API services; `ExtractionReader` is the one read path for out/. |
+| `api.dto` | `DocumentSummary`, `DocumentDetail`, `DuplicatesView`, `DuplicateGroupView` | Response records. |
+| `api.exception` | `DocumentApiException`, `ApiExceptionHandler` | Map failures to RFC 7807 problem details. |
 
 No class names a catalog field id. The only fixed vocabularies in code are the ones the code's logic depends on: `FieldType`, `FieldStatus`, `MinimumElement` and `DocumentFlag`. Confidence levels come from `catalog.confidence_levels`; their list order (high first) defines the ranking.
 
@@ -375,8 +381,8 @@ record ExtractionOutput(String documentId, String catalogVersion, String model, 
 | `GET /api/documents` | `DocumentService.list()` | one `DocumentSummary(id, title, caseCount, flags, reviewCounts, progress)` per `out/*.json`, sorted by id. `reviewCounts = {conflict, unknown, byConfidence: {<catalog level>: n}}` summed over all cases (used by the UI rail; see FRONTEND.md §4.2). `progress` is described in §12.1. |
 | `GET /api/documents/{id}` | `DocumentService.get(id)` | `DocumentDetail(id, title, text, extraction, reviews, progress)`. `text` is the `.txt`, else the transcript `<app.derived>/<ID>.txt`, else null. `extraction` is the out/ file unchanged; `reviews` and `progress` are described in §12.1 |
 | `GET /api/duplicates` | `DuplicatesController` | recomputed on every request with `DuplicateDetector` over all `out/*.json` (via `ExtractionReader`, `duplicates.json` excluded; no cache). Returns `DuplicatesView` `{integerTolerance, groups}`: `integerTolerance` is `duplicates.integer-tolerance`, so the UI comparator uses the detector's rule; each group is a `DuplicateGroupView` `{documentIds, confidence, reason, pairs: [{a: {id, caseIndex}, b: {id, caseIndex}, agreements}]}`. `documentIds`, `confidence`, `reason` equal the groups in `out/duplicates.json`; `pairs` lists every accepted case pair inside the group in detector order (a group of 3 documents has up to 3 pairs). `groups` is `[]` when there are none. A corrupt out file or an invalid `duplicates` configuration is a 500 `ProblemDetail` whose detail names no path. |
-| `PATCH /api/documents/{id}/cases/{caseIndex}/fields/{fieldId}` | `ReviewController` → `ReviewService.apply` | body `{"action": "accept"\|"reject"\|"edit"\|"reset", "value"?: <json>}`; returns one `MergedField` |
-| `PATCH /api/documents/{id}/cases/{caseIndex}/fields` | `ReviewController` → `ReviewService.applyBulk` | body `{"action": "accept"\|"reject", "fieldIds"?: [..]}`; returns `MergedField[]` for the fields it changed |
+| `PATCH /api/documents/{id}/cases/{caseIndex}/fields/{fieldId}` | `DocumentController` → `ReviewService.apply` | body `{"action": "accept"\|"reject"\|"edit"\|"reset", "value"?: <json>}`; returns one `MergedField` |
+| `PATCH /api/documents/{id}/cases/{caseIndex}/fields` | `DocumentController` → `ReviewService.applyBulk` | body `{"action": "accept"\|"reject", "fieldIds"?: [..]}`; returns `MergedField[]` for the fields it changed |
 
 - `{id}` must match `^[A-Za-z0-9_-]{1,32}$`; anything else gets a 400. An unknown id gets a 404. Both are `ProblemDetail`.
 - `TitleExtractor.title(String text)`: the first line matching `^(?i)subject:\s*(.+)$`, otherwise the first non-blank line, trimmed and cut to 120 characters. Null text gives `"(no text layer)"`. The list uses the same text (`.txt`, else transcript) for titles.

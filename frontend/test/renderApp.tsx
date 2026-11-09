@@ -1,18 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { QueryClient } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { AppProviders } from '../src/App'
 import { routes } from '../src/routes'
+import { createTestQueryClient } from './queryClients'
 
-/** A fresh client per test: no retries, no background refetch, no gc timers. */
-export function createTestQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, staleTime: Infinity, gcTime: Infinity, refetchOnWindowFocus: false },
-    },
-  })
-}
+export { createTestQueryClient } from './queryClients'
 
 /** The three landmarks of the shell, looked up lazily (they appear after the first render). */
 export const panes = {

@@ -3,7 +3,7 @@ import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Catalog, CatalogField, DocumentDetail, FieldResult, FieldType } from '../src/api/types'
 import { isRisky } from '../src/lib/risk'
-import { editedState } from '../src/lib/status'
+import { reviewState } from '../src/lib/status'
 import { StatusBadge } from '../src/components/StatusBadge'
 import { D01, MP1, catalogFixture } from './fixtures'
 import { server } from './msw/server'
@@ -324,11 +324,16 @@ describe('badges', () => {
     expect(rowFor(pane, labelOf(d as string))).toHaveTextContent('Not stated')
     expect(rowFor(pane, labelOf(e))).toHaveTextContent('Conflict')
 
-    render(<StatusBadge state={editedState()} />)
-    const edited = screen.getByRole('img', { name: 'Edited' })
-    expect(edited).toHaveTextContent('✎')
-    expect(edited).toHaveTextContent('edited')
-    expect(edited).toHaveAttribute('data-tone', 'edited')
+    // Review badges follow the same rule: icon + colour + text.
+    const reviews = [['accepted', 'Accepted', '✓', 'ok'], ['rejected', 'Rejected', '⊘', 'muted'], ['edited', 'Manual edit', '✎', 'edited']] as const
+    for (const [kind, name, icon, tone] of reviews) {
+      const { unmount } = render(<StatusBadge state={reviewState(kind)} />)
+      const b = screen.getByRole('img', { name })
+      expect(b).toHaveTextContent(icon)
+      expect(b).toHaveTextContent(name)
+      expect(b).toHaveAttribute('data-tone', tone)
+      unmount()
+    }
   })
 
   it('badgeToneFollowsRankNotName', async () => {
@@ -394,7 +399,9 @@ describe('summary and filters', () => {
     }
     expect(within(pane).getByRole('button', { name: /^unknown/ })).toHaveTextContent('1')
     expect(within(pane).getByRole('button', { name: /^conflict/ })).toHaveTextContent('1')
-    expect(within(pane).queryByRole('button', { name: /^edited/ })).toBeNull()
+    // Nothing is reviewed yet: every field is unreviewed, the other review chips are at 0.
+    expect(within(pane).getByRole('button', { name: /^Unreviewed: / })).toHaveAccessibleName(`Unreviewed: ${catalogFixture.fields.length}`)
+    expect(within(pane).getByRole('button', { name: 'Edited: 0' })).toBeDisabled()
   })
 
   it('riskyOnlyShowsConflictAndLowerConfidence', async () => {
@@ -476,7 +483,7 @@ describe('selection', () => {
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
     const row = rowFor(pane, labelOf(id))
     const inspector = document.getElementById(row.getAttribute('aria-controls') ?? '') as HTMLElement
-    const [excerpt] = within(inspector).getAllByRole('button')
+    const [excerpt] = within(inspector).getAllByRole('button', { name: /show in text/i })
     await user.click(excerpt as HTMLElement)
     expect(scrollIntoView).toHaveBeenCalledTimes(2)
     const target = scrollIntoView.mock.contexts[1] as HTMLElement

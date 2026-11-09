@@ -1,16 +1,25 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
+import { errorMessage } from '../api/client'
 import { useCatalog, useDocument } from '../api/queries'
-import type { CaseOutput, Catalog, DocumentDetail } from '../api/types'
-import { useFieldKeyboard } from '../hooks/useFieldKeyboard'
+import { useBulkReview, useReviewField } from '../api/reviews'
+import type { BulkAction, CaseOutput, Catalog, DocumentDetail } from '../api/types'
+import { useFieldKeyboard, type ReviewKey } from '../hooks/useFieldKeyboard'
 import { useQuoteModel } from '../hooks/useQuoteModel'
 import { useSelection } from '../hooks/useSelection'
-import { draftKey, useDrafts } from '../lib/drafts'
-import { buildCaseRows, withDraft, type FieldRowModel, type SectionModel } from '../lib/fieldRows'
+import { buildCaseRows, withReview, type FieldRowModel, type SectionModel } from '../lib/fieldRows'
 import { isRisky } from '../lib/risk'
-import { conflictState, editedState, levelState, unknownState } from '../lib/status'
+import { REVIEW_KINDS, conflictState, levelState, reviewChipState, unknownState } from '../lib/status'
+import type { EditValue } from '../lib/values'
+import { BulkReviewBar } from './BulkReviewBar'
 import { CaseTabs } from './CaseTabs'
+import { ConfirmDialog } from './ConfirmDialog'
+import { keyStart } from './controls/FieldControl'
+import type { EditStart } from './controls/types'
 import { FieldInspector } from './FieldInspector'
 import { FieldRow } from './FieldRow'
+import { ProgressBar } from './ProgressBar'
+import { ReviewButtons, type FieldAction } from './ReviewButtons'
 import { SectionGroup } from './SectionGroup'
 import { SummaryBar, type SummaryChip } from './SummaryBar'
 import { ErrorCard } from './states/ErrorCard'
@@ -55,20 +64,14 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
   // useSelection has already validated the index against this document.
   const shownIndex = cases[caseIndex] ? caseIndex : 0
   const kase = cases[shownIndex] as CaseOutput
-  const drafts = useDrafts()
+  // The server's reviews of this case (only reviewed fields appear).
+  const caseReviews = doc.reviews[String(shownIndex)]
 
   const model = useMemo(() => buildCaseRows(catalog, kase), [catalog, kase])
-  // The rows as shown: a field with a local draft shows the draft, marked edited, with the model state beside it.
+  // The rows as shown: each with its stored review (accepted, rejected, edited) or none.
   const sections = useMemo<SectionModel[]>(
-    () =>
-      model.sections.map((s) => ({
-        ...s,
-        rows: s.rows.map((r) => {
-          const key = draftKey(doc.id, shownIndex, r.field.id)
-          return drafts.has(key) ? withDraft(r, drafts.get(key) ?? null) : r
-        }),
-      })),
-    [model, drafts, doc.id, shownIndex],
+    () => model.sections.map((s) => ({ ...s, rows: s.rows.map((r) => withReview(r, caseReviews?.[r.field.id])) })),
+    [model, caseReviews],
   )
   const riskCounts = useMemo(
     () =>
@@ -98,26 +101,105 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
     const count = (key: string) => allRows.filter((r) => r.state.key === key).length
     const base = [...levels.map((l) => levelState(l, levels)), unknownState(), conflictState()]
     const chips: SummaryChip[] = base.map((state) => ({ state, count: count(state.key) }))
-    // The edited chip is added last, on its own terms (hidden at 0).
-    const edited = editedState()
     // A level the catalog does not list still gets a chip (risk-toned) rather than vanishing from the counts.
-    const seen = new Set([...base.map((s) => s.key), edited.key])
+    const seen = new Set(base.map((s) => s.key))
     for (const r of allRows) {
       if (!seen.has(r.state.key)) {
         seen.add(r.state.key)
         chips.push({ state: r.state, count: count(r.state.key) })
       }
     }
-    chips.push({ state: edited, count: count(edited.key), hideWhenEmpty: true })
     return chips
   }, [allRows, levels])
+  const reviewChips = useMemo<SummaryChip[]>(
+    () => REVIEW_KINDS.map((kind) => ({ state: reviewChipState(kind), count: allRows.filter((r) => r.reviewKind === kind).length })),
+    [allRows],
+  )
 
-  const matches = (r: FieldRowModel) => (active.size === 0 || active.has(r.state.key)) && (!riskyOnly || r.risky)
+  // Model-state chips combine with "or", review chips with "or", and the two groups with "and".
+  const activeModel = [...active].filter((k) => !k.startsWith('review:'))
+  const activeReview = [...active].filter((k) => k.startsWith('review:'))
+  const matches = (r: FieldRowModel) =>
+    (activeModel.length === 0 || active.has(r.state.key)) &&
+    (activeReview.length === 0 || active.has(reviewChipState(r.reviewKind).key)) &&
+    (!riskyOnly || r.risky)
   // The selected row stays visible under any filter: the reviewer chose it (e.g. by clicking a quote).
   const visible = (r: FieldRowModel) => matches(r) || r.field.id === selectedFieldId
   // The keyboard's path: visible rows of this case, in display order.
   const order = allRows.filter(visible).map((r) => r.field.id)
   const shown = order.length
+  // Bulk actions: under any filter, the shown unreviewed fields only (sent as fieldIds); otherwise the whole case.
+  const filtered = active.size > 0 || riskyOnly
+  const bulkTargets = allRows.filter((r) => r.reviewKind === 'unreviewed' && (!filtered || visible(r))).map((r) => r.field.id)
+  const unreviewed = bulkTargets.length
+
+  // After a review the selection moves on to the next unreviewed visible field (wrapping round once).
+  const latest = useRef({ selectedFieldId, allRows, caseIndex: shownIndex })
+  useEffect(() => {
+    latest.current = { selectedFieldId, allRows, caseIndex: shownIndex }
+  })
+  const advance = useCallback(
+    (from: string, path: readonly string[], fromCase: number) => {
+      const now = latest.current
+      // The reviewer moved on (another field or case) while the review was saving: leave them there.
+      if (now.selectedFieldId !== from || now.caseIndex !== fromCase) return
+      const reviewed = new Set(now.allRows.filter((r) => r.reviewKind !== 'unreviewed').map((r) => r.field.id))
+      const at = path.indexOf(from)
+      const next = [...path.slice(at + 1), ...path.slice(0, Math.max(at, 0))].find((id) => id !== from && !reviewed.has(id))
+      if (next !== undefined) select(next, { reveal: 'focus' })
+    },
+    [select],
+  )
+
+  const reviewField = useReviewField(doc.id)
+  const bulk = useBulkReview(doc.id)
+  const [actionError, setActionError] = useState<{ fieldId: string; message: string } | null>(null)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+  const [confirmingReject, setConfirmingReject] = useState(false)
+  // Reject on an edited field discards the edit: it is asked first (the field id waiting for an answer).
+  const [discarding, setDiscarding] = useState<string | null>(null)
+  // One review at a time: a field action and a bulk action never overlap.
+  const busy = reviewField.isPending || bulk.isPending
+
+  const send = (fieldId: string, action: FieldAction) => {
+    if (busy) return
+    const path = order
+    const fromCase = shownIndex
+    setActionError(null)
+    reviewField.mutate(
+      { caseIndex: shownIndex, fieldId, action },
+      {
+        onSuccess: () => {
+          if (action !== 'reset') advance(fieldId, path, fromCase)
+        },
+        onError: (error) => setActionError({ fieldId, message: errorMessage(error) }),
+      },
+    )
+  }
+  // Accept on an edited field confirms the edit (the server keeps it); reject asks before discarding it.
+  const reviewOne = (fieldId: string, action: FieldAction) => {
+    if (busy) return
+    const row = allRows.find((r) => r.field.id === fieldId)
+    if (action === 'reject' && row?.reviewKind === 'edited') setDiscarding(fieldId)
+    else send(fieldId, action)
+  }
+  const discardRow = discarding === null ? undefined : allRows.find((r) => r.field.id === discarding)
+  const saveEdit = (fieldId: string, value: EditValue) => {
+    const path = order
+    const fromCase = shownIndex
+    setActionError(null)
+    return reviewField
+      .mutateAsync({ caseIndex: shownIndex, fieldId, action: 'edit', value })
+      .then(() => advance(fieldId, path, fromCase))
+  }
+  const bulkReview = (action: BulkAction) => {
+    if (busy) return
+    setBulkError(null)
+    bulk.mutate(
+      filtered ? { caseIndex: shownIndex, action, fieldIds: bulkTargets } : { caseIndex: shownIndex, action },
+      { onError: (error) => setBulkError(`Couldn't ${action} all: ${errorMessage(error)}`) },
+    )
+  }
 
   // The selected row's button, for revealing it and for keeping focus when its inspector closes.
   const selectedRow = useRef<HTMLButtonElement>(null)
@@ -141,7 +223,37 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
     if (row && active && active !== row && row.closest('li')?.contains(active)) row.focus({ preventScroll: true })
     select(null)
   }, [select])
-  useFieldKeyboard({ order, selected: selectedFieldId, select: (id) => select(id, { reveal: 'focus' }), clear })
+  const focusRow = useCallback(() => selectedRow.current?.focus({ preventScroll: true }), [])
+
+  // A keyboard request to start editing the selected field, handed to its inspector once.
+  const [editStart, setEditStart] = useState<{ fieldId: string; start: EditStart } | null>(null)
+  // A request never outlives its selection (it must not fire when the field is selected again later).
+  if (editStart !== null && editStart.fieldId !== selectedFieldId) setEditStart(null)
+  const startEdit = (seed: string | null): boolean => {
+    const row = allRows.find((r) => r.field.id === selectedFieldId)
+    if (!row) return false
+    const how = seed === null ? { seed: null, typeThrough: false } : keyStart(row.field.type, seed)
+    // Synchronously, so the control has focus before the browser acts on the key (type-through).
+    flushSync(() => setEditStart({ fieldId: row.field.id, start: { seed: how.seed } }))
+    return !how.typeThrough
+  }
+  const reviewAll = (action: ReviewKey) => {
+    if (busy || unreviewed === 0) return
+    if (action === 'accept') bulkReview('accept')
+    else setConfirmingReject(true)
+  }
+  useFieldKeyboard({
+    order,
+    selected: selectedFieldId,
+    selectedRow,
+    select: (id) => select(id, { reveal: 'focus' }),
+    clear,
+    startEdit,
+    review: (action) => {
+      if (selectedFieldId !== null) reviewOne(selectedFieldId, action)
+    },
+    reviewAll,
+  })
 
   const toggle = (key: string) =>
     setActive((prev) => {
@@ -152,16 +264,33 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
     })
 
   const single = cases.length === 1 ? kase.label : undefined
+  const caseName = cases.length > 1 ? `case ${shownIndex + 1}${kase.label ? ` (${kase.label})` : ''}` : undefined
   return (
     <div className={styles.panel}>
       <div className={styles.header}>
-        <h2 className={styles.heading}>Extracted fields</h2>
-        <span className={styles.caseLabel}>{cases.length > 1 ? `${cases.length} cases` : single}</span>
+        <div className={styles.titleRow}>
+          <h2 className={styles.heading}>Extracted fields</h2>
+          <span className={styles.caseLabel}>{cases.length > 1 ? `${cases.length} cases` : single}</span>
+        </div>
+        <div className={styles.reviewRow}>
+          <ProgressBar progress={doc.progress} label="Document review progress" />
+          <BulkReviewBar
+            unreviewed={unreviewed}
+            shownOnly={filtered}
+            caseName={caseName}
+            onBulk={bulkReview}
+            confirming={confirmingReject}
+            onConfirming={setConfirmingReject}
+            busy={busy}
+            error={bulkError}
+          />
+        </div>
       </div>
       <CaseTabs cases={cases} value={caseIndex} onChange={setCase} riskCounts={riskCounts}>
         <SummaryBar
           barRef={summaryBar}
           chips={chips}
+          reviewChips={reviewChips}
           active={active}
           onToggle={toggle}
           riskyOnly={riskyOnly}
@@ -193,17 +322,33 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
                     buttonRef={selected ? selectedRow : undefined}
                     quoteOutside={invalid !== undefined}
                     onToggle={() => select(selected ? null : id)}
+                    actions={
+                      <ReviewButtons
+                        variant="compact"
+                        label={`Review ${row.field.label}`}
+                        review={row.review}
+                        busy={busy}
+                        onAction={(action) => reviewOne(id, action)}
+                      />
+                    }
                     inspector={(inspectorId) => (
                       <FieldInspector
-                        // Keyed by draft: a case switch starts the control afresh (no half-typed text carried over).
-                        key={draftKey(doc.id, shownIndex, id)}
+                        // Keyed by document, case and field: a case switch starts the control afresh.
+                        key={`${doc.id}/${shownIndex}/${id}`}
                         id={inspectorId}
                         field={row.field}
                         result={row.result}
+                        review={row.review}
                         text={doc.text}
                         invalid={invalid ?? []}
-                        draftKey={draftKey(doc.id, shownIndex, id)}
-                        modelText={(row.model?.value ?? row.value).text}
+                        modelText={row.value.text}
+                        onSave={(value) => saveEdit(id, value)}
+                        onReview={(action) => reviewOne(id, action)}
+                        busy={busy}
+                        actionError={actionError?.fieldId === id ? actionError.message : null}
+                        start={editStart?.fieldId === id ? editStart.start : null}
+                        onStarted={() => setEditStart(null)}
+                        onClose={focusRow}
                       />
                     )}
                   />
@@ -212,6 +357,25 @@ function CaseFields({ doc, catalog }: { doc: DocumentDetail; catalog: Catalog })
             </SectionGroup>
           )
         })}
+        <ConfirmDialog
+          open={discardRow !== undefined}
+          title="Discard manual edit?"
+          confirmText="Discard edit and reject"
+          tone="danger"
+          onCancel={() => setDiscarding(null)}
+          onConfirm={() => {
+            const id = discarding
+            setDiscarding(null)
+            if (id !== null) send(id, 'reject')
+          }}
+        >
+          {discardRow && (
+            <p>
+              {discardRow.field.label} has a manual edit: “{discardRow.edited?.text ?? ''}”. Rejecting it discards
+              the edit and rejects the model value. Reset undoes the rejection, but not the edit.
+            </p>
+          )}
+        </ConfirmDialog>
         {model.uncatalogued.length > 0 && (
           <p role="note" className={styles.warning}>
             <span aria-hidden="true">⚠ </span>

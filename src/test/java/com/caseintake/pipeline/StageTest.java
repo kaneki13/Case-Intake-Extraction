@@ -9,6 +9,7 @@ class StageTest {
     void cliValuesSelectTheStage() {
         assertThat(Stage.fromCli("cases")).contains(Stage.CASES);
         assertThat(Stage.fromCli("extract")).contains(Stage.EXTRACT);
+        assertThat(Stage.fromCli("transcribe")).contains(Stage.TRANSCRIBE);
         assertThat(Stage.fromCli("bogus")).isEmpty();
         assertThat(Stage.fromCli("CASES")).isEmpty();
     }
@@ -16,6 +17,9 @@ class StageTest {
     @Test
     void fixtureKeysAndOwnership() {
         assertThat(Stage.CASES.fixtureKey()).isEqualTo("cases");
+        assertThat(Stage.TRANSCRIBE.fixtureKey()).isEqualTo("transcribe");
+        assertThat(Stage.TRANSCRIBE.owns("transcribe")).isTrue();
+        assertThat(Stage.TRANSCRIBE.owns("cases")).isFalse();
         assertThat(Stage.EXTRACT.fixtureKey(2)).isEqualTo("extract-case-2");
         assertThat(Stage.CASES.owns("cases")).isTrue();
         assertThat(Stage.CASES.owns("extract-case-0")).isFalse();

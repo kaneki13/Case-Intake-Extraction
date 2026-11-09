@@ -123,3 +123,20 @@
   height: 36px;
   border-bottom: 1px solid var(--border);
 }
+
+/* Duplicate groups */
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+}

@@ -24,22 +24,31 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Builds the two model prompts (LLD 7.2, 7.3). Fixed rule text comes from {@code prompts/*.md} on the
- * classpath; everything about fields comes from the catalog. The document always sits inside a
+ * Builds the model prompts (LLD 7.2, 7.3, 7.4). Fixed rule text comes from {@code prompts/*.md} on the
+ * classpath; everything about fields comes from the catalog. Document text always sits inside a
  * {@link DocumentFence}; document text quoted outside the fence and the model-supplied case labels are
- * JSON-escaped.
+ * JSON-escaped. The transcription prompt carries no document text: the document is the attached file.
  */
 public final class PromptBuilder {
     static final String CASE_FINDING_RESOURCE = "prompts/case-finding.md";
     static final String EXTRACTION_RESOURCE = "prompts/extraction.md";
+    static final String TRANSCRIPTION_RESOURCE = "prompts/transcription.md";
+    static final String TRANSCRIPTION_USER = "The attached file is the document.";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final String caseFindingRules;
     private final String extractionRules;
+    private final String transcriptionRules;
 
     public PromptBuilder() {
         this.caseFindingRules = resource(CASE_FINDING_RESOURCE);
         this.extractionRules = resource(EXTRACTION_RESOURCE);
+        this.transcriptionRules = fill(resource(TRANSCRIPTION_RESOURCE), Map.of());
+    }
+
+    /** The transcription prompt; the document is sent as an attachment, so no text and no fence are included. */
+    public Prompt transcriptionPrompt(Optional<String> repairHint) {
+        return new Prompt(transcriptionRules, TRANSCRIPTION_USER + repair(repairHint));
     }
 
     public Prompt caseFindingPrompt(SourceText text, String marker, Optional<String> repairHint) {

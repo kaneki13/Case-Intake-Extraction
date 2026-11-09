@@ -135,12 +135,12 @@ class CaseFinderTest {
     void dateConventionHintNeedsLocatedEvidence() {
         CaseFinding located = CaseFinder.find(D01,
                 response(full(), null, "", "day_first", "Leeds, United Kingdom"));
-        assertThat(located.hints()).isEqualTo(new DocumentHints(DateConvention.DAY_FIRST, true));
+        assertThat(located.hints()).isEqualTo(new DocumentHints(DateConvention.DAY_FIRST, true, false));
         CaseFinding unlocated = CaseFinder.find(D01,
                 response(full(), null, "", "month_first", "Chicago, Illinois"));
-        assertThat(unlocated.hints()).isEqualTo(new DocumentHints(DateConvention.MONTH_FIRST, false));
+        assertThat(unlocated.hints()).isEqualTo(new DocumentHints(DateConvention.MONTH_FIRST, false, false));
         CaseFinding none = CaseFinder.find(D01, response(full(), null, "", "unknown", null));
-        assertThat(none.hints()).isEqualTo(new DocumentHints(DateConvention.UNKNOWN, false));
+        assertThat(none.hints()).isEqualTo(new DocumentHints(DateConvention.UNKNOWN, false, false));
     }
 
     @Test

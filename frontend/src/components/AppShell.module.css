@@ -75,6 +75,28 @@
   flex: 1;
 }
 
+.progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.progressDoc {
+  color: var(--muted);
+  font-size: var(--t13);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* A narrow top bar keeps the brand and the theme toggle; progress stays in the fields pane. */
+@media (max-width: 640px) {
+  .progress {
+    display: none;
+  }
+}
+
 .version {
   padding: 2px var(--s2);
   border: 1px solid var(--border);

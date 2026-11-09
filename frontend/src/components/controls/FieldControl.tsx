@@ -1,21 +1,59 @@
 import { useEffect, type ReactNode } from 'react'
-import type { CatalogField } from '../../api/types'
-import type { DraftValue } from '../../lib/drafts'
+import type { CatalogField, FieldType } from '../../api/types'
+import type { EditValue } from '../../lib/values'
 import { CodedMultiSelect } from './CodedMultiSelect'
 import { CodedSelect } from './CodedSelect'
 import { DateControl } from './DateControl'
 import { NumberControl } from './NumberControl'
 import { StringListControl } from './StringListControl'
 import { TextControl } from './TextControl'
+import type { EditStart } from './types'
 import styles from './Control.module.css'
 
 interface Props {
   /** DOM id of the labelled control element. */
   id: string
   field: CatalogField
-  /** The draft, or the model's value when there is none; null or undefined when there is no value. */
+  /** The value being edited (starts as the current value); null or undefined when there is no value. */
   value: unknown
-  onChange: (value: DraftValue) => void
+  onChange: (value: EditValue) => void
+  /** Start an edit from the keyboard (see `keyStart`). */
+  start?: EditStart | null
+}
+
+/** How a character typed on a selected row starts the edit of its field. */
+export interface KeyStart {
+  /** Handed to the control (`EditStart.seed`): null opens the control without it. */
+  seed: string | null
+  /** The key goes on to the focused control, which the browser types it into. */
+  typeThrough: boolean
+}
+
+/**
+ * How a typed character starts an edit, by catalog type:
+ * - string, integer, number: the character replaces the value;
+ * - date: a digit is typed into the date input; anything else just opens it;
+ * - coded: the list opens with the first option starting with the character highlighted;
+ * - coded_multi, string_list: the character goes into the filter or add box.
+ */
+export function keyStart(type: FieldType, char: string): KeyStart {
+  switch (type) {
+    case 'string':
+    case 'integer':
+    case 'number':
+    case 'coded':
+    case 'coded_multi':
+    case 'string_list':
+      return { seed: char, typeThrough: false }
+    case 'date':
+      return { seed: null, typeThrough: /^\d$/.test(char) }
+    default: {
+      // Compile time: every catalog type has a case. Run time: a newer catalog may send another.
+      const unexpected: never = type
+      console.error(`keyStart: unsupported field type "${String(unexpected)}"`)
+      return { seed: null, typeThrough: false }
+    }
+  }
 }
 
 /** A value the control can show, plus the reason when the incoming value did not fit it. */
@@ -71,7 +109,7 @@ function asCodes(field: CatalogField, raw: unknown): Fit<string[]> {
  * know renders an explicit notice. Values that do not fit the control (the row has already reported
  * them) start it empty, with a notice saying so.
  */
-export function FieldControl({ id, field, value, onChange }: Props) {
+export function FieldControl({ id, field, value, onChange, start = null }: Props) {
   const type = field.type
   let control: ReactNode
   let problem: string | null = null
@@ -79,38 +117,38 @@ export function FieldControl({ id, field, value, onChange }: Props) {
     case 'string': {
       const fit = asText(value)
       problem = fit.problem
-      control = <TextControl id={id} field={field} value={fit.value} onChange={onChange} />
+      control = <TextControl id={id} field={field} value={fit.value} onChange={onChange} start={start} />
       break
     }
     case 'integer':
     case 'number': {
       const fit = asNumber(value)
       problem = fit.problem
-      control = <NumberControl id={id} field={field} value={fit.value} onChange={onChange} />
+      control = <NumberControl id={id} field={field} value={fit.value} onChange={onChange} start={start} />
       break
     }
     case 'date': {
       const fit = asDate(value)
       problem = fit.problem
-      control = <DateControl id={id} field={field} value={fit.value} onChange={onChange} />
+      control = <DateControl id={id} field={field} value={fit.value} onChange={onChange} start={start} />
       break
     }
     case 'coded': {
       const fit = asCode(field, value)
       problem = fit.problem
-      control = <CodedSelect id={id} field={field} value={fit.value} onChange={onChange} />
+      control = <CodedSelect id={id} field={field} value={fit.value} onChange={onChange} start={start} />
       break
     }
     case 'coded_multi': {
       const fit = asCodes(field, value)
       problem = fit.problem
-      control = <CodedMultiSelect id={id} field={field} value={fit.value} onChange={onChange} />
+      control = <CodedMultiSelect id={id} field={field} value={fit.value} onChange={onChange} start={start} />
       break
     }
     case 'string_list': {
       const fit = asStrings(value)
       problem = fit.problem
-      control = <StringListControl id={id} field={field} value={fit.value} onChange={onChange} />
+      control = <StringListControl id={id} field={field} value={fit.value} onChange={onChange} start={start} />
       break
     }
     default: {

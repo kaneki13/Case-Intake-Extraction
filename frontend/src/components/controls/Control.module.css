@@ -67,6 +67,10 @@
   animation: menu-in var(--dur-fast) var(--ease);
 }
 
+.filter {
+  margin-bottom: var(--s1);
+}
+
 .viewport {
   display: flex;
   flex-direction: column;

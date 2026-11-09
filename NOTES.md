@@ -1,6 +1,6 @@
 # Notes
 
-How to run everything is in [README.md](README.md). The design is in [docs/solution/HLD.md](docs/solution/HLD.md) (decisions D1-D12), [docs/solution/LLD.md](docs/solution/LLD.md) and [docs/solution/FRONTEND.md](docs/solution/FRONTEND.md).
+How to run everything is in [README.md](README.md). The design is in [docs/solution/HLD.md](docs/solution/HLD.md) (decisions D1-D12), [docs/solution/LLD.md](docs/solution/LLD.md) and [docs/solution/FRONTEND.md](docs/solution/FRONTEND.md). The stretch items are designed in [docs/solution/STRETCH.md](docs/solution/STRETCH.md) and described in section 5.
 
 ## 1. Checker output on the four answered documents
 
@@ -95,6 +95,8 @@ Provenance:            62 of 62 extracted fields grounded (100.0%)
 
 64/64 on four documents is a small sample. D02, D03 and D05 were extracted once with the first prompt and never re-recorded. D01 was re-recorded after a list-wording fix (see section 4.1), so D01's score is partly a result of tuning against its own answer.
 
+The block is unchanged after the stretch work: the core outputs were not re-recorded, and `scripts/score.sh` was re-run on the final branch with the same result. The stretch documents S01-S04 have no answers, so they are not scored (section 5).
+
 ## 2. The four documents without answers
 
 Values below are from `out/`, written as `field = value (confidence)`. Notes on why confidence was lowered come from the deterministic rules in section 3.
@@ -181,13 +183,13 @@ Where I am unsure:
 
 The note on the field lists the rules that lowered it. These rules cost some correct values their "high" badge. That was a deliberate choice: the checker scores a correct value +1 at any confidence, while a wrong value at high costs −2. The prompt adds two softer rules for the model itself: a hedged date ("about", "on or about") and one outcome for reactions with different courses are at most medium.
 
-**Live and replay share one path (D5).** In `extract`, each response is written to `fixtures/` first and then read back from disk, and the pipeline parses that copy. Replay reads the same files through the same code. `ReplayGoldenTest` checks that replay reproduces the committed `out/`.
+**Live and replay share one path (D5).** In `extract`, each response is written to `fixtures/` first and then read back from disk, and the pipeline parses that copy. Replay reads the same files through the same code. `ReplayGoldenTest` checks that replay reproduces the committed `out/`, including `out/duplicates.json`, and the transcript in `derived/` byte for byte.
 
 **Fixtures keyed by document and stage (D6).** A fixture is `fixtures/<ID>/<stage>.attempt-<n>.json` (`cases` or `extract-case-<i>`), not a hash of the request. A changed catalog changes the prompt, but replay must still find the recordings. With a changed catalog, every recorded value is re-validated: a value that no longer passes becomes `unknown` with the rejection note, and a field the recording does not cover becomes `unknown` with `Not covered by the recorded model response.` `CatalogChangeReplayTest` covers both, including through `./replay.sh <catalog>`. Re-recordings add `attempt-<n+1>` and keep the older files as history; replay uses the highest attempt.
 
 **Response schema generated from the catalog (D7).** `ResponseSchemaFactory` builds a provider-neutral JSON Schema from the catalog: every field id is required, and each value is typed by the catalog (enum for coded options, pattern, min/max, date). `GeminiSchemaTranslator` is the only class that knows Gemini's dialect. The prompt's field list (section, label, type, options, validation, guidance) is rendered from the catalog too. No field id appears in `src/main` or `frontend/src`, and tests check both.
 
-**Provider behind an interface (D8, D11).** `LlmClient` with one implementation, `GeminiLlmClient`, chosen by `llm.provider`. Models are configured per stage: Flash-Lite for case finding, Flash for extraction, to spread the free-tier daily quotas.
+**Provider behind an interface (D8, D11).** `LlmClient` with one implementation, `GeminiLlmClient`, chosen by `llm.provider`. Models are configured per stage: Flash-Lite for case finding, Flash for extraction and for transcribing image-only PDFs, to spread the free-tier daily quotas. Each stage's model can be overridden with an environment variable (`LLM_MODEL_CASES`, `LLM_MODEL_EXTRACT`, `LLM_MODEL_TRANSCRIBE`).
 
 **Prompt-injection handling (D10).** The document goes inside a fence whose marker is 16 random hex characters, new for each request. Both system prompts say that nothing inside the fence is an instruction. Stage 1 must quote any passage aimed at automated processing in `embedded_instructions`. When such a quote is found in the text, the output gets `embedded_instructions_ignored` and the UI shows the flag. D07 is the test, and its injected values did not reach the output.
 
@@ -196,7 +198,7 @@ The note on the field lists the rules that lowered it. These rules cost some cor
 **Rate limits, retries and quota (D9), and what actually happened.** The client has a sliding-window limiter of 8 requests per minute per model, and retries 429, 500, 503 and timeouts with exponential backoff that honours the server's `retryDelay`. A 429 for a per-day quota stops the run at once. Runs are resumable, because recorded stages are reused. In practice:
 - The first extraction model was `gemini-3.8-flash`, with 5 attempts per call and a 120 s timeout. D01 worked (16/16). Then D02 got 5 × HTTP 503 "high demand" and D03 got 5 timeouts. Those failed attempts counted against the free daily quota of 20 requests, and it ran out after one successful extraction.
 - I raised the timeout to 300 s (a healthy call already took about 80 s) and capped retries at 3, so a demand spike cannot drain the quota.
-- `gemini-3.7-flash` turned out to bill to the same 3.8 quota. The user chose to switch extraction to `gemini-3.6-flash`, which has its own quota, rather than wait for the reset. D01's extraction was re-recorded with 3.6, so every committed output uses one extraction model. The old 3.8 recording is kept as `attempt-1`.
+- `gemini-3.7-flash` turned out to bill to the same 3.8 quota. The user chose to switch extraction to `gemini-3.6-flash`, which has its own quota, rather than wait for the reset. D01's extraction was re-recorded with 3.6, so every core output (D01-D08) uses one extraction model. The old 3.8 recording is kept as `attempt-1`. The stretch run ran out of the 3.6 quota too, so S03 and S04 were extracted with a different model (section 5.5).
 
 **No chunking.** The longest document, D08, is about 12,700 characters, well within the models' context. Each stage sees the whole document, so a quote or a conflict anywhere in the text is visible. The HLD's contingency (one stage-2 call per catalog section if Gemini rejected the large schema) was not needed: Gemini accepted the schema.
 
@@ -231,17 +233,19 @@ The shipped extraction prompt is v3 (v4 changed nothing for extraction), and the
 | D06 | attempt 1, v1 | none (no case) |
 | D07 | attempt 3, shipped | attempt 3, shipped |
 | D08 | attempt 1, v1 | attempt 2, shipped |
+| S01-S04 | attempt 1, shipped | attempt 1, shipped (S03 also: transcription attempt 1, the only transcription prompt) |
 
-Between v1 and v4 the case-finding prompt changed only in the label and name rules. The deterministic confidence rules run on replay, so they apply to every document whatever prompt recorded it. A clean run of all documents on the shipped prompts would cost 16 calls and was not done.
+Between v1 and v4 the case-finding prompt changed only in the label and name rules. The deterministic confidence rules run on replay, so they apply to every document whatever prompt recorded it. The stretch documents were recorded after the last prompt change, so they all use the shipped prompts. A clean run of the core documents on the shipped prompts would cost 16 calls and was not done.
 
 ### 4.2 Backend limitations
 
 - **"'none' stands alone" is enforced by option code, not by field.** The catalog has no machine-readable rule for it (only `pattern`, `min`, `max`), so `FieldValidator` applies the glossary rule ("Seriousness": `none` "stands alone", the same check as `tools/check.py`) to every `coded_multi` field whose options include the code `none`: a value that combines `none` with another code is rejected, and the field becomes `unknown` with the validator's note. No field id is named in code. No committed output uses `none`.
 - **The prompts carry a few glossary-level field semantics in prose**, without field ids: where names and initials may come from, that a dose and route reached through another person are not this patient's, that the report's place (country) applies to every patient, and how a mixed outcome lowers confidence. A catalog that redefined these concepts would also need the prompt text reviewed.
 - **D07's case label is a first name** ("Jenna"), as described in section 2.
-- `--stage=cases` re-records case finding only. The existing extraction recordings are kept and reused without a warning, even though they were made for the old case list.
+- `--stage=cases` re-records case finding only. The existing extraction recordings are kept and reused without a warning, even though they were made for the old case list. (`--stage=transcribe` does not have this problem: a new transcript also re-records that document's case finding and extraction.)
 - A document that fails during a run leaves its previous `out/<ID>.json` in place.
-- An unknown `--only` id is reported as a failed document (exit 1), not as a configuration error (exit 2). A blank model id, a blank `--stage` or `--out`, and an unknown command are configuration errors (exit 2).
+- An unknown `--only` id is reported as a failed document (exit 1), not as a configuration error (exit 2). A blank model id, a blank `--stage`, `--out` or `--derived`, and an unknown command are configuration errors (exit 2).
+- **Exit codes differ when duplicate detection fails at run time** (for example an unreadable `out/` file): `extract` exits 1 and prints `duplicate detection failed: …`, but `replay` reports any failure outside a document as a configuration error and exits 2. Invalid `duplicates` settings are exit 2 for both, checked before any document.
 - The rate limiter's `acquire` is synchronized, so while one model is waiting for a slot, calls to the other model wait too. Runs are sequential, so this has not mattered.
 - Numbers written with thousands separators count as "not written in the quote" and lose one confidence level.
 - `CatalogChangeReplayTest`'s `./replay.sh` test is skipped, with the reason, when `target/case-intake.jar` is missing or older than a file under `src/` or `pom.xml`, so `./mvnw test` never starts a nested Maven build. On a fresh clone, run `./mvnw package` (or `./replay.sh`) once before `./mvnw test` to include it.
@@ -249,40 +253,176 @@ Between v1 and v4 the case-finding prompt changed only in the label and name rul
 ### 4.3 Frontend limitations
 
 - **Esc on a filtered row.** A selected row stays visible even when the active filter would hide it. Esc clears the selection, the row disappears, and keyboard focus goes with it.
-- **A coded single-select cannot be cleared back to empty** (Radix Select has no "no value" option). "Reset to model value" is the way back.
-- **↓ / ↑** move between fields everywhere except in the document text and the document rail, where they scroll. So they do not scroll the fields panel. `j` / `k` work everywhere.
+- **An edit cannot clear a value.** A coded single-select has no "no value" option (Radix Select), and an edit without a value is refused by the server (400, shown under the control). To say a value is wrong or not stated, reject it; Reset removes a saved edit.
+- **↓ / ↑** move between fields only while focus is in the fields pane, so there they do not scroll the pane. Elsewhere they scroll. There are no letter shortcuts any more (section 5.4).
 - **Narrow screens.** The layout was checked in a browser at 1440 px and 820 px only. At 820 px the bottom sheet scrolls a little further than needed when it reveals a row.
 - **Shared tone styles are duplicated.** The mapping from status tone to colour is repeated in the CSS modules of FieldRow, StatusBadge, Flags and SummaryBar.
 - Badge tooltips (the full note) open on hover and focus only.
 - A document with no case shows a green "✓ 0" risk count in the rail, which can read as "verified".
-- An edited row loses the icon and colour of the model's original status.
 - The production bundle is about 505 kB (160 kB gzip), and Vite warns about chunk size. It is not code-split.
 - **Google Fonts are a runtime network dependency.** Inter and Source Serif 4 load from fonts.googleapis.com; offline, the UI falls back to the system sans-serif and Georgia. The tests do not load them and stay offline.
 
-## 5. What is missing
+## 5. Stretch items
 
-Stretch items not done:
-- **Stretch documents S01-S04.** `app.documents` lists only `documents`. S03 (PDF only) would get `unsupported_format` through the existing path, but S01, S02 and S04 have no recordings.
-- **Duplicates.** There is no `out/duplicates.json` and no side-by-side view.
-- **Review actions.** There is no `PATCH` endpoint and no persisted accept, reject or edit.
+All four stretch items are done. The design is [docs/solution/STRETCH.md](docs/solution/STRETCH.md) (decisions Q1-Q19).
 
-Partly done:
-- **Click a quote to select its field:** done.
-- **Keyboard:** next and previous field (`j`/`k`, `↓`/`↑`), `Enter` to toggle the inspector and `Esc` to clear are done. Accept and reject keys are not, because there are no review actions.
-- **Edits:** the inspector has catalog-driven controls, and edits are kept as local drafts, marked "edited", with "Reset to model value". They live in memory for the session only and are never sent to the backend. There is no per-document progress.
+### 5.1 The stretch documents
 
-## 6. AI tools and how I used them
+`app.documents` is now `[documents, documents/stretch]`, so extract and replay process 12 documents. The stretch documents have no answers, so these values were checked by reading the documents, not by the checker. Values are from `out/`, written as `field = value (confidence)`.
 
-I used **Claude Code** throughout, with Claude Opus 5.5 as the planning session. And Claude Sonnet 4.8 as the controlling session.
+**S01: pharmacist e-mail, Freiburg, digoxin (1 case, no flags).**
+- `patient_initials = EW`, `patient_age_years = 81` (high), `patient_sex = female` (medium, from "Mrs").
+- `suspect_drug_name = digoxin`, `dose = 0.25 mg`, `start_date = 2026-01-05` (all high), `route = oral` (medium, "by mouth").
+- `event_terms = [nausea, dizziness, bradycardia]` (medium), `event_onset_date = 2026-02-13` (low), `event_outcome = recovered` (medium), `seriousness_criteria = [hospitalization]` (medium).
+- `reporter_type = pharmacist`, `report_date = 2026-02-20`, `country = DE`, `concomitant_drugs = [bisoprolol, apixaban]` (all high).
+- Where I am unsure: the onset date is worked out from "16 Feb ... for three days", and hospitalisation is inferred from the drug being "stopped in hospital". Both are already below high.
+
+**S02: cardiology letter, Freiburg, the same patient (1 case, no flags).**
+- `EW`, `81`, `female` (all high); `digoxin`, `0.25 mg`, `start_date = 2026-01-05` (high), `route = oral` (medium).
+- `event_terms = [digoxin toxicity, symptomatic bradycardia, nausea, dizziness, general weakness, second-degree atrioventricular block]` (medium), `event_onset_date = 2026-02-13` (medium, "approximately"), `event_outcome = recovered` (high), `seriousness_criteria = [hospitalization]` (medium).
+- `reporter_type = physician` (medium), `report_date = 2026-02-24`, `country = DE`, `concomitant_drugs = [bisoprolol, apixaban]` (all high).
+- Where I am unsure: the six-item event list mixes a diagnosis ("digoxin toxicity"), findings and symptoms, so an answer key may list fewer terms. The onset is hedged in the letter.
+
+**S03: image-only PDF, Lisboa, enalapril (1 case, flag `transcribed_from_image`).** See 5.2 for how it was read.
+- `FAC`, `60`, `male`; `enalapril`, `dose_value = 10` (written as `10.0` by the model), `route = oral`, `start_date = 2026-06-10`.
+- `event_terms = [angioedema, swelling of the lips, swelling of the tongue, swelling of the face]`, `event_onset_date = 2026-06-28`, `event_outcome = recovered`, `seriousness_criteria = [hospitalization]`.
+- `reporter_type = physician`, `report_date = 2026-07-02`, `country = PT`, `concomitant_drugs = [metformin]`.
+- Every value is at medium: the transcribed-source rule caps them (5.2).
+- **`suspect_drug_dose_unit` is `unknown`**: `Model value "mg" rejected: quote not found in document.` The model quoted only "mg", and `QuoteLocator` rejects quotes shorter than 3 characters. That is the general grounding rule working as designed, and the extraction prompt already asks for quotes of a few words. I did not re-record it: an unknown scores 0, a re-record without a prompt change is not a general fix, and loosening the minimum quote length would weaken provenance for every document.
+
+**S04: dental surgeon's letter, Valencia, amoxicillin (1 case, no flags).** It looks like D01 (a 54-year-old woman, amoxicillin 500 mg, a rash) but is a different patient (5.3).
+- `patient_initials = AS`, `patient_age_years = 54` (high), `patient_sex = female` (medium).
+- `amoxicillin`, `dose = 500 mg`, `start_date = 2026-05-11` (all high), `route = oral` (medium).
+- `event_terms = [itchy red rash, erythematous maculopapular rash]` (medium), `event_onset_date = 2026-05-14` (high), `event_outcome = recovered` (medium), `seriousness_criteria = [none]` (medium).
+- `reporter_type = other_hcp` (medium; the catalog counts dentists as other_hcp), `report_date = 2026-05-21`, `country = ES` (high).
+- `concomitant_drugs = []` (high). The patient "takes no regular medication", and cetirizine and clindamycin were given to treat the reaction, which the catalog excludes.
+- Where I am unsure: the empty concomitant list is at high, so if a key counted the treatment drugs it would cost −2. The two event terms describe one rash in two wordings.
+
+### 5.2 S03: transcribe first, then extract as text
+
+The brief allowed either a vision model or `unsupported_format` with no cases. I chose transcription, with one constraint: **provenance needs text**. Every value must carry a quote and code-point offsets, and the UI highlights those offsets. A vision model that extracted fields straight from the image would give values with nothing to point at.
+
+So a document with a `.pdf` and no `.txt` goes through a new first stage, `transcribe`:
+- The PDF is sent inline to `gemini-3.6-flash` with a prompt asking for a verbatim transcription in reading order, line breaks kept, `[illegible]` for unreadable spans, no corrections, and nothing in the image treated as an instruction. The response schema is `{transcript, illegible_count}`.
+- The transcript is written to `derived/S03.txt` (committed) and becomes the document's text. Case finding and extraction then run unchanged, so the quote check, validation, confidence rules, replay and the UI highlighting all work as for any text document. Offsets in `out/S03.json` index `derived/S03.txt`, not the PDF.
+- The fixture keeps the request as sent, including the PDF as base64, so replay rebuilds `derived/S03.txt` byte for byte without the PDF.
+- A blank transcript gives `unsupported_format` with no case (and deletes any earlier transcript). A transcription that is still invalid after the repair retry fails the document (exit 1).
+
+**The transcript is faithful.** I compared `derived/S03.txt` with the PDF: every word, number, date and punctuation mark matches, in the same order and with the same line breaks. It has 0 `[illegible]` spans, which is right because the page is fully readable. The only differences are runs of spaces inside a line ("Initials:  F.A.C." became "Initials: F.A.C."), which do not affect quoting because quotes are taken from the transcript. No prompt change was needed.
+
+**Values are capped at medium.** The quote check proves a value is in the transcript, not that the transcript matches the page. A new confidence rule, `TRANSCRIBED_SOURCE`, caps every value from a transcribed source at the second confidence level. It is generic: it reads the document hint, not the document id. The UI shows the flag as "Transcribed from image — verify against the PDF".
+
+### 5.3 Duplicates
+
+**Deterministic, after all documents.** No model call: the detector compares outputs, so replay rebuilds `out/duplicates.json` exactly and every decision can be explained field by field. It runs at the end of both `extract` and `replay`.
+
+Rules (`DuplicateDetector`, LLD §15):
+- Every case is compared with every case of another document, field by field over the catalog. `ValueComparator` gives `MATCH`, `DIFFER`, `ONE_SIDED` or `BOTH_ABSENT`. Only extracted values count as present. Strings are compared after trim and case-fold; integers may differ by `integer-tolerance`; numbers are compared numerically; coded multi-values as sets; string lists match when both are empty or they overlap.
+- Any `DIFFER` in the identity section (`patient`) rules the pair out: same drug and reaction, different patient.
+- A pair is also ruled out when more than `max-differences` fields differ, over the whole catalog.
+- A pair is a duplicate when it has at least `min-agreements` matching fields and at least one match in each required section (`patient`, `drug`, `event`). This is what the brief means by "documents that only share a drug or a reaction are not duplicates".
+- Confidence is `high` at `high-agreements` or more, else `medium`. Groups are built with union-find. The reason lists up to 6 matched values in catalog order.
+
+Configuration (`application.yml`, `duplicates`); section ids only, no field id in code:
+
+| Key | Value |
+|---|---|
+| `identity-section` | `patient` |
+| `required-sections` | `[patient, drug, event]` |
+| `min-agreements` | `5` |
+| `high-agreements` | `8` |
+| `integer-tolerance` | `1` |
+| `max-differences` | `4` |
+
+**Result.** One group, with no threshold tuning:
+
+```
+{"document_ids": ["S01", "S02"], "confidence": "high",
+ "reason": "Same patient and event: EW; 81; female; digoxin; 0.25; mg"}
+```
+
+S01 and S02 match in 14 fields and differ in 2, both outside the identity section: the reporter type (the pharmacist's e-mail and the physician's letter) and the report date. No core document is grouped with anything.
+
+**S04 against D01 is rejected, twice over.** They agree in 8 fields (age, sex, drug, dose value and unit, route, outcome, an empty concomitant list), which on its own would reach `high`. But the initials differ (AS against MK), which is a `DIFFER` in the identity section, and 8 fields differ in all (initials, start date, event terms, onset date, seriousness, reporter type, report date, country), above `max-differences: 4`. The first version had only the identity veto. The S03 run showed that the initials alone kept this decoy apart, so if one document had no initials it would have been grouped at high confidence. The final fix wave added `max-differences` as a second, general check. The cost: a true duplicate whose two reports differ in more than four fields would be missed.
+
+**The UI.** `GET /api/duplicates` recomputes the groups with the same detector and adds the matched case pairs and the `integerTolerance`, so the UI's comparator uses the backend's rule rather than its own constant. `/duplicates` lists the groups; `/duplicates/<n>` shows both texts beside a table of every catalog field, marked ✓ Match, ✗ Differ, ◌ One side only or — Neither (icon, colour and word). Clicking a row highlights that field's quotes in both texts.
+
+### 5.4 Review actions, progress and the keyboard
+
+**Storage: `reviews/<ID>.json`, git-ignored, never `out/`.** I did not write review decisions into `out/`:
+- `./replay.sh` must rebuild `out/` byte for byte from the recordings, and the golden test checks it. Reviews in `out/` would be lost on every replay or make the test fail.
+- `out/` must match `schema/extraction.schema.json`, which has no place for a review.
+- Keeping the model's value unchanged lets the UI show it next to the reviewer's edit.
+
+The API merges the reviews into its responses. Writes are atomic (temp file, then rename) and serialised per document with a lock, so two quick PATCHes both persist. An edit is validated against the catalog (400 with the reason if it fails). A request that changes nothing writes nothing. Reviews for a case or field that no longer exists are ignored, not an error.
+
+Endpoints: `PATCH /api/documents/{id}/cases/{caseIndex}/fields/{fieldId}` with `{action: accept|reject|edit|reset, value?}`, and a bulk `PATCH …/fields` with `{action: accept|reject, fieldIds?}` that changes only unreviewed fields. `GET /api/documents` and `GET /api/documents/{id}` add `progress` (reviewed fields / cases × catalog fields).
+
+Rulings made along the way:
+- Accept on a manually edited field keeps the edit (it confirms it). Reject on an edited field is allowed, but the UI first asks "Discard manual edit?".
+- Accepting an `unknown` or `conflict` field confirms it and counts as reviewed.
+- Bulk actions never overwrite a review. With a summary filter or "Risky only" active, they act only on the shown unreviewed fields ("Accept N shown"), because a reviewer who filtered to the risky fields means those. The cost: clear the filters to act on the whole case.
+
+**UI.** Accept this / Reject this / Reset on the selected row and in the inspector; Accept all / Reject all in the fields-pane header. Badges: ✓ Accepted, ⊘ Rejected (value struck through), ✎ Manual edit (blue, with the model's value struck through below). Progress is a bar in the top bar and the fields pane, and a ring per document in the rail.
+
+**The keyboard model I specified** (STRETCH Q9, Q13-Q18), and what changed from the core version:
+- `↑` / `↓` move between fields only while focus is in the fields pane. In the core version they worked everywhere except the document text and the rail; now they never take scrolling away from the other panes.
+- No letter shortcuts: `j` / `k` are gone, so typing always means typing.
+- On a selected field, `Enter` or a typed character starts an edit (before, `Enter` only toggled the inspector). In text and number fields the character replaces the value; coded, date, multi-choice and list fields open their control. `Enter` in the editor saves and moves to the next unreviewed field; `Esc` cancels.
+- With no editor open, `Esc` clears the selection.
+- `Alt+A` / `Alt+R` accept or reject this field and move on; `Alt+Shift+A` / `Alt+Shift+R` act on all unreviewed fields (the shown ones under a filter). Reject all asks first. The Alt keys do nothing inside an open editor, so an unsaved edit cannot be accepted by mistake; press `Esc` first.
+
+### 5.5 Which model recorded what
+
+The 3.6 Flash daily quota ran out partway through the stretch run. Transcription and extraction share it. S01 and S02 were complete, and S03 was transcribed and had its cases found, when the S03 extraction call got a 429 for the daily quota. Alternatives with their own quota were tried, one request each: `gemini-3.5-flash`, `gemini-omni-1.2-flash` and `gemini-omni-1.1-flash` were also out of daily quota, `gemini-3-flash` and `gemini-2.5-flash` returned 404, and 3.7/3.8 had been spent earlier. I chose not to wait for the reset and allowed a preview model. **S03 and S04 were extracted with `gemini-3-flash-preview`**, set with `LLM_MODEL_EXTRACT` for that run only; `application.yml` was not changed.
+
+| Document | Transcription | Case finding | Extraction | `model` in out/ |
+|---|---|---|---|---|
+| D01-D08 | none | gemini-3.5-flash-lite | gemini-3.6-flash (D06: none, no case) | gemini/gemini-3.6-flash (D06: the case-finding model) |
+| S01 | none (text) | gemini-3.5-flash-lite | gemini-3.6-flash | gemini/gemini-3.6-flash |
+| S02 | none (text) | gemini-3.5-flash-lite | gemini-3.6-flash | gemini/gemini-3.6-flash |
+| S03 | gemini-3.6-flash | gemini-3.5-flash-lite | **gemini-3-flash-preview** | gemini/gemini-3-flash-preview |
+| S04 | none (text) | gemini-3.5-flash-lite | **gemini-3-flash-preview** | gemini/gemini-3-flash-preview |
+
+The stretch run made 9 successful calls (4 case finding on Flash-Lite, 2 extractions and 1 transcription on 3.6 Flash, 2 extractions on 3-flash-preview), plus 7 rejected requests while looking for a model with quota (4 × 429, 3 × 404, one of them a deliberate probe that showed the override reaches the call) and one model listing. No call was spent on tuning. Replay reads the recordings, so it needs none of these models.
+
+## 6. What is missing and known limitations of the stretch work
+
+Nothing from the stretch list is left out: the four documents (with S03 transcribed), duplicates with the side-by-side view, persisted review actions with progress, and click-to-select plus the keyboard (next, previous, accept, reject) are all done. What I know is weaker than it should be:
+
+- **Mixed models.** D01-D08, S01 and S02 were extracted with `gemini-3.6-flash`, S03 and S04 with `gemini-3-flash-preview`, a preview model. Re-recording the two would take 2 calls on 3.6 Flash once its quota resets; I did not do it.
+- **S03 dose unit is `unknown`** (5.1), because of the 3-character quote minimum.
+- **S03's offsets point into the transcript** (`derived/S03.txt`), not into the PDF, and its values are only as good as the transcription. All of them are capped at medium for that reason.
+- **Exit code on a run-time duplicate-detection failure:** extract exits 1, replay exits 2 (section 4.2).
+- **No per-document `possible_duplicate` flag.** The schema recommends it, but duplicates are reported only in `out/duplicates.json` and the duplicates screen; S01's and S02's own `flags` are empty.
+- **`max-differences: 4`** could miss a true duplicate whose reports differ in more than four fields (5.3).
+- **Reviews do not record the model value they judged.** They are keyed by document, case index and field id. If a document were re-recorded with a different value, an existing accept would apply to the new value.
+- **One review per field, no history and no reviewer identity.** A repeated accept or reject keeps the first decision and its time.
+- **The duplicate table's row click** (the click handler sits on the row, for Safari) and the wider state column were checked in jsdom only, not in a real browser after the final fix.
+- **Filtered bulk actions count the selected row as shown** even when it does not match the filter, as the "Showing N of M" line does.
+- **`Alt+A` / `Alt+R` do nothing inside an open editor**; press `Esc` first (by design, see 5.4).
+
+## 7. AI tools and how I used them
+
+I used **Claude Code** throughout: Claude Opus 5.5 for the controlling session and the design and heavier tasks, Claude Sonnet 5.5 for most implementer and reviewer subagents, and Claude Haiku 5.5 for small re-reviews.
 
 - **Requirements.** The controlling session grilled me on the brief before any design, and my answers became `docs/solution/HLD.md`. A separate round settled the frontend (`docs/solution/FRONTEND.md` §1).
 - **Design and plan.** Claude wrote the HLD, the LLD and a task-by-task plan (`docs/solution/PLAN.md`, and FRONTEND.md for the UI). They were agreed before any code was written.
 - **Subagent-driven development.** For each task, the controlling session sent a fresh implementer subagent a written brief and a common set of standing rules. It used Sonnet or Opus depending on how complex the task was. The rules were: test first (write the failing test, capture the RED output, then make it pass), no field id or document id in `src/main`, never read `.env`, commit only explicit paths. A separate reviewer subagent then reviewed each task's diff against its brief. Findings went back to the implementer in fix loops until the review was clean, and small re-reviews used Haiku. Both plans ended with a whole-branch review and one fix wave. The frontend review found 0 critical and 2 important issues, both fixed. The backend review found 0 critical and 1 important issue, the "none stands alone" rule, fixed together with stricter catalog checks, provider-neutral credentials and shared constants. A ledger recorded every ruling and every deferred minor issue; sections 4.2 and 4.3 come from it.
 - **Live run.** A subagent ran the recording run, scored the outputs with the checker and tuned the prompts. Every tuning change had to be general (no document text, drug name or field id in code), and it re-recorded only the affected stages.
+- **Stretch work**, the same way on a separate branch:
+  - Grilling rounds (2026-11-07/08) settled the decisions Q1-Q19, recorded with the design and a task plan (S1-S11) in `docs/solution/STRETCH.md` before any code.
+  - Before dispatching, the controlling session checked how each task's outputs fed the next ones and recorded a ruling for each mismatch (for example, which JSON shapes the review API hands the UI).
+  - One implementer subagent at a time, each with a brief and the standing rules (test first, no field id or document text in `src/main` or `frontend/src`, no silent fallbacks, `./replay.sh` must leave `out/` and `derived/` unchanged, never read `.env`, explicit commit paths). Each task was reviewed against its brief until clean. Only the live task (S3) could call the model.
+  - When the quota ran out in S3, the subagent stopped and reported, and I decided how to continue (5.5).
+  - A final whole-branch review found 0 critical, 2 important (bulk actions ignored the active filter; the golden test used its own copy of the configuration instead of `application.yml`) and 6 minor issues. One fix wave (two commits) fixed them together with earlier deferred items: `max-differences`, accept on an edited field, the duplicates response shape, deleting a stale transcript, and input-method composition in the keyboard handler. A scoped re-review was clean. The exit-code difference in section 6 was left and documented.
+  - This documentation was written last, from the design, the ledger and the task reports, and checked against the code.
 - **What I decided myself**, among others:
   - The key comes from an environment variable or a git-ignored `.env`, never from `application.yml` or any committed file.
   - Extraction is two-stage, with case finding as its own call.
-  - When the 3.8 Flash quota ran out, switch the extraction model rather than wait for the daily reset. (`gemini-3.6-flash` was then picked because 3.7 shares 3.8's quota, and D01 was re-recorded so that one model produced every output.)
+  - When the 3.8 Flash quota ran out, switch the extraction model rather than wait for the daily reset. (`gemini-3.6-flash` was then picked because 3.7 shares 3.8's quota, and D01 was re-recorded so that one model produced every core output.)
+  - The keyboard model for the stretch (5.4): arrows only in the fields pane, `Enter` or typing to edit, `Enter` to save, `Esc` to cancel, Alt shortcuts for accept and reject, no letter shortcuts.
+  - When the 3.6 Flash quota ran out during the stretch run, continue with a preview model for the last two extractions rather than wait for the reset (5.5).
 - AI wrote nearly all of the code, tests and documents. They were checked through the per-task reviews, the checker and the offline test suites.
 
 ### UI design prompt

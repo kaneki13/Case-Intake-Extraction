@@ -3,6 +3,9 @@ package com.caseintake.pipeline;
 import static com.caseintake.pipeline.DocumentPipelineTest.EMPTY_FIELDS;
 import static com.caseintake.pipeline.DocumentPipelineTest.NO_CASE;
 import static com.caseintake.pipeline.DocumentPipelineTest.ONE_CASE;
+import static com.caseintake.pipeline.DocumentPipelineTest.PDF_BYTES;
+import static com.caseintake.pipeline.DocumentPipelineTest.TRANSCRIBED;
+import static com.caseintake.pipeline.DocumentPipelineTest.TRANSCRIPT;
 import static com.caseintake.pipeline.DocumentPipelineTest.TEXT;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -10,6 +13,7 @@ import com.caseintake.CaseIntakeApplication;
 import com.caseintake.config.AppProperties;
 import com.caseintake.output.OutputWriter;
 import com.caseintake.support.CatalogFixtures;
+import com.caseintake.support.DuplicateFixtures;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +33,7 @@ class ReplayCommandTest {
     Path docs;
     Path fixtures;
     Path out;
+    Path derived;
     final ByteArrayOutputStream errBytes = new ByteArrayOutputStream();
     final PrintStream err = new PrintStream(errBytes, true, StandardCharsets.UTF_8);
 
@@ -37,14 +42,18 @@ class ReplayCommandTest {
         docs = Files.createDirectories(root.resolve("docs"));
         fixtures = root.resolve("fixtures");
         out = root.resolve("out");
+        derived = root.resolve("derived");
         Files.writeString(docs.resolve("R1.txt"), TEXT);
         Files.writeString(docs.resolve("R2.txt"), TEXT);
-        Files.writeString(docs.resolve("R3.pdf"), "%PDF");
-        var client = new ExtractCommandTest.FakeClient("not json", ONE_CASE, EMPTY_FIELDS, NO_CASE);
+        Files.write(docs.resolve("R3.pdf"), PDF_BYTES);
+        Files.writeString(docs.resolve("R4.png"), "not a pdf");
+        var client = new ExtractCommandTest.FakeClient("not json", ONE_CASE, EMPTY_FIELDS, NO_CASE, TRANSCRIBED,
+                ONE_CASE, EMPTY_FIELDS);
         int code = new ExtractCommand(app(CatalogFixtures.COMMITTED), ExtractCommandTest.llm(),
-                () -> Optional.of(client), ExtractCommandTest.CLOCK, err).run(Set.of(), Optional.empty(), false);
+                DuplicateFixtures.standard(), () -> Optional.of(client), ExtractCommandTest.CLOCK, err).run(Set.of(), Optional.empty(), false);
         assertThat(code).isZero();
         assertThat(fixtures.resolve("R1/cases.attempt-2.json")).exists();
+        assertThat(Files.readString(derived.resolve("R3.txt"))).isEqualTo(TRANSCRIPT);
     }
 
     /** Runs the application entry point with System.err captured into {@link #errBytes}. */
@@ -63,20 +72,34 @@ class ReplayCommandTest {
     }
 
     AppProperties app(Path catalog) {
-        return new AppProperties(catalog, List.of(docs), fixtures, out);
+        return new AppProperties(catalog, List.of(docs), fixtures, out, derived, out.resolveSibling("reviews"));
+    }
+
+    @Test
+    void replayWritesDuplicatesJsonAndRejectsBadDuplicateConfiguration() throws Exception {
+        Path replayed = root.resolve("replayed");
+        new ReplayCommand(app(CatalogFixtures.COMMITTED), DuplicateFixtures.standard(), err)
+                .run(CatalogFixtures.COMMITTED, replayed, root.resolve("replayed-derived"), Set.of());
+        assertThat(Files.readString(replayed.resolve("duplicates.json"))).contains("\"groups\"");
+
+        var bad = new com.caseintake.duplicates.DuplicateProperties("nope", List.of("patient"), 5, 8, 1, 4);
+        int code = new ReplayCommand(app(CatalogFixtures.COMMITTED), bad, err).execute(
+                new DefaultApplicationArguments("--out=" + root.resolve("bad-out")));
+        assertThat(code).isEqualTo(2);
+        assertThat(stderr()).contains("Configuration error").contains("nope");
     }
 
     @Test
     void replayReproducesExtractOutputExactly() throws Exception {
         Path replayed = root.resolve("replayed");
 
-        RunReport report = new ReplayCommand(app(CatalogFixtures.COMMITTED), err)
-                .run(CatalogFixtures.COMMITTED, replayed, Set.of());
+        RunReport report = new ReplayCommand(app(CatalogFixtures.COMMITTED), DuplicateFixtures.standard(), err)
+                .run(CatalogFixtures.COMMITTED, replayed, root.resolve("replayed-derived"), Set.of());
 
         assertThat(report.failed()).isEmpty();
-        assertThat(report.written()).containsExactly("R1", "R2", "R3");
+        assertThat(report.written()).containsExactly("R1", "R2", "R3", "R4");
         assertThat(report.exitCode()).isZero();
-        for (String id : List.of("R1", "R2", "R3")) {
+        for (String id : List.of("R1", "R2", "R3", "R4")) {
             assertThat(Files.readString(replayed.resolve(id + ".json")))
                     .isEqualTo(Files.readString(out.resolve(id + ".json")));
         }
@@ -87,7 +110,8 @@ class ReplayCommandTest {
         Path changed = CatalogFixtures.mutated(root, c -> c.put("catalog_version", "9.9-test"));
         Path replayed = root.resolve("replayed");
 
-        RunReport report = new ReplayCommand(app(changed), err).run(changed, replayed, Set.of("R1", "R2"));
+        RunReport report = new ReplayCommand(app(changed), DuplicateFixtures.standard(), err).run(changed, replayed, root.resolve("replayed-derived"),
+                Set.of("R1", "R2"));
 
         assertThat(report.written()).containsExactly("R1", "R2");
         assertThat(OutputWriter.read(replayed.resolve("R1.json")).catalogVersion()).isEqualTo("9.9-test");
@@ -100,12 +124,12 @@ class ReplayCommandTest {
         Files.writeString(docs.resolve("R0.txt"), TEXT);
         Path replayed = root.resolve("replayed");
 
-        RunReport report = new ReplayCommand(app(CatalogFixtures.COMMITTED), err)
-                .run(CatalogFixtures.COMMITTED, replayed, Set.of());
+        RunReport report = new ReplayCommand(app(CatalogFixtures.COMMITTED), DuplicateFixtures.standard(), err)
+                .run(CatalogFixtures.COMMITTED, replayed, root.resolve("replayed-derived"), Set.of());
 
         assertThat(report.failed()).containsOnlyKeys("R0");
         assertThat(report.failed().get("R0")).contains("No fixture recorded for R0/cases");
-        assertThat(report.written()).containsExactly("R1", "R2", "R3");
+        assertThat(report.written()).containsExactly("R1", "R2", "R3", "R4");
         assertThat(report.exitCode()).isEqualTo(1);
         assertThat(replayed.resolve("R0.json")).doesNotExist();
     }
@@ -116,10 +140,13 @@ class ReplayCommandTest {
 
         int code = execute("replay", "--llm.provider=",
                 "--llm.gemini.api-key=", "--app.documents=" + docs, "--app.fixtures=" + fixtures,
-                "--out=" + replayed, "--only=R1,R3");
+                "--out=" + replayed, "--derived=" + root.resolve("app-derived"), "--only=R1,R3");
 
         assertThat(code).isZero();
         assertThat(Files.readString(replayed.resolve("R1.json"))).isEqualTo(Files.readString(out.resolve("R1.json")));
+        assertThat(Files.readString(replayed.resolve("R3.json"))).isEqualTo(Files.readString(out.resolve("R3.json")));
+        assertThat(Files.readAllBytes(root.resolve("app-derived/R3.txt")))
+                .isEqualTo(Files.readAllBytes(derived.resolve("R3.txt")));
         assertThat(replayed.resolve("R2.json")).doesNotExist();
         assertThat(stderr()).contains("Run report: 2 written, 0 failed");
     }
@@ -156,10 +183,38 @@ class ReplayCommandTest {
     void blankOutOptionExitsTwoAndWritesNothing() throws Exception {
         errBytes.reset();   // drop the extract run report printed by the setup
         for (String arg : List.of("--out=", "--out", "--out=  ")) {
-            int code = new ReplayCommand(app(CatalogFixtures.COMMITTED), err)
+            int code = new ReplayCommand(app(CatalogFixtures.COMMITTED), DuplicateFixtures.standard(), err)
                     .execute(new DefaultApplicationArguments(arg));
             assertThat(code).as(arg).isEqualTo(2);
         }
         assertThat(stderr()).contains("Configuration error: --out needs a value").doesNotContain("Run report");
+    }
+
+    @Test
+    void blankDerivedOptionExitsTwoAndWritesNothing() throws Exception {
+        errBytes.reset();
+        Path replayed = root.resolve("replayed");
+        for (String arg : List.of("--derived=", "--derived", "--derived=  ")) {
+            int code = new ReplayCommand(app(CatalogFixtures.COMMITTED), DuplicateFixtures.standard(), err)
+                    .execute(new DefaultApplicationArguments("--out=" + replayed, arg));
+            assertThat(code).as(arg).isEqualTo(2);
+        }
+        assertThat(stderr()).contains("Configuration error: --derived needs a value").doesNotContain("Run report");
+        assertThat(replayed).doesNotExist();
+    }
+
+    @Test
+    void replayRebuildsDerivedTextFromFixture() throws Exception {
+        byte[] recorded = Files.readAllBytes(derived.resolve("R3.txt"));
+        Files.delete(derived.resolve("R3.txt"));
+        Path replayedDerived = root.resolve("replayed-derived");
+
+        RunReport report = new ReplayCommand(app(CatalogFixtures.COMMITTED), DuplicateFixtures.standard(), err)
+                .run(CatalogFixtures.COMMITTED, root.resolve("replayed"), replayedDerived, Set.of("R3"));
+
+        assertThat(report.written()).containsExactly("R3");
+        assertThat(Files.readAllBytes(replayedDerived.resolve("R3.txt"))).isEqualTo(recorded);
+        assertThat(derived.resolve("R3.txt")).as("the configured derived dir is not touched").doesNotExist();
+        assertThat(OutputWriter.read(root.resolve("replayed/R3.json")).flags()).contains("transcribed_from_image");
     }
 }

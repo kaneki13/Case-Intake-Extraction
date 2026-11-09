@@ -45,8 +45,8 @@ public class CaseIntakeApplication {
     static final String USAGE = String.join(System.lineSeparator(),
             "Usage: java -jar target/case-intake.jar [extract | replay] [options]",
             "  (no command)  start the review server",
-            "  extract       call the model and record fixtures: [--only=<id>,...] [--stage=cases|extract] [--force]",
-            "  replay        rebuild outputs from fixtures: [--only=<id>,...] [--out=<dir>]");
+            "  extract       call the model and record fixtures: [--only=<id>,...] [--stage=transcribe|cases|extract] [--force]",
+            "  replay        rebuild outputs from fixtures: [--only=<id>,...] [--out=<dir>] [--derived=<dir>]");
 
     public static void main(String[] args) {
         RunMode mode;

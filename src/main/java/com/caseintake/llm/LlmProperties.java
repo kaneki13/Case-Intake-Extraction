@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "llm")
 public record LlmProperties(String provider, Models models, RateLimit rateLimit, Retry retry, Gemini gemini) {
 
-    public record Models(String caseFinding, String extraction) {}
+    public record Models(String caseFinding, String extraction, String transcription) {}
 
     public record RateLimit(int requestsPerMinute) {}
 

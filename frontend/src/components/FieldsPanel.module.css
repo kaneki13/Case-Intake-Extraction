@@ -5,11 +5,26 @@
 
 .header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  flex-direction: column;
   gap: var(--s3);
   padding: var(--s4);
   border-bottom: 1px solid var(--border);
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+/* Document progress on the left, the current case's bulk actions on the right. */
+.reviewRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2) var(--s3);
 }
 
 .heading {

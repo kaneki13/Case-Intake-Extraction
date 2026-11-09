@@ -8,6 +8,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.caseintake.llm.LlmAttachment;
 import com.caseintake.llm.LlmException;
 import com.caseintake.llm.LlmHttpException;
 import com.caseintake.llm.LlmCredential;
@@ -18,6 +19,7 @@ import com.caseintake.llm.RateLimiter;
 import com.caseintake.llm.RetryPolicy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Base64;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -53,7 +55,7 @@ class GeminiLlmClientTest {
     }
 
     private LlmRequest req() throws Exception {
-        return new LlmRequest("m1", "sys", "user text", om.readTree("{\"type\":\"object\",\"properties\":{\"a\":{\"type\":[\"string\",\"null\"]}}}"));
+        return new LlmRequest("m1", "sys", "user text", om.readTree("{\"type\":\"object\",\"properties\":{\"a\":{\"type\":[\"string\",\"null\"]}}}"), List.of());
     }
 
     private static String ok(String finish) {
@@ -98,6 +100,45 @@ class GeminiLlmClientTest {
         assertThat(body.at("/generationConfig/temperature").asInt(-1)).isZero();
         assertThat(body.at("/generationConfig/responseMimeType").asText()).isEqualTo("application/json");
         assertThat(body.at("/generationConfig/responseSchema/properties/a/nullable").asBoolean()).isTrue();
+    }
+
+    @Test
+    void attachmentBecomesInlineDataPartBeforeText() throws Exception {
+        Fixture f = fixture("k");
+        f.server.expect(requestTo(URL)).andRespond(withSuccess(ok("STOP"), MediaType.APPLICATION_JSON));
+        byte[] bytes = {0, 1, 2, (byte) 250, (byte) 255, 62, 63};
+        LlmRequest base = req();
+        LlmRequest r = new LlmRequest(base.model(), base.systemInstruction(), base.userContent(),
+                base.responseJsonSchema(), List.of(new LlmAttachment("application/pdf", bytes)));
+        JsonNode body = om.readTree(f.client.generate(r).rawRequestBody());
+        assertThat(body.at("/contents/0/parts/0/inline_data/mime_type").asText()).isEqualTo("application/pdf");
+        assertThat(body.at("/contents/0/parts/0/inline_data/data").asText())
+                .isEqualTo(Base64.getEncoder().encodeToString(bytes));
+        assertThat(body.at("/contents/0/parts/1/text").asText()).isEqualTo("user text");
+    }
+
+    @Test
+    void noAttachmentsKeepsSingleTextPart() throws Exception {
+        Fixture f = fixture("k");
+        f.server.expect(requestTo(URL)).andRespond(withSuccess(ok("STOP"), MediaType.APPLICATION_JSON));
+        JsonNode body = om.readTree(f.client.generate(req()).rawRequestBody());
+        assertThat(body.at("/contents/0/parts")).hasSize(1);
+        assertThat(body.at("/contents/0/parts/0/text").asText()).isEqualTo("user text");
+    }
+
+    @Test
+    void attachmentValidatesCopiesAndHidesBytes() {
+        byte[] bytes = {1, 2, 3};
+        LlmAttachment a = new LlmAttachment("application/pdf", bytes);
+        bytes[0] = 9;
+        assertThat(a.data()).containsExactly(1, 2, 3);
+        a.data()[1] = 9;
+        assertThat(a.data()).containsExactly(1, 2, 3);
+        assertThat(a).isEqualTo(new LlmAttachment("application/pdf", new byte[] {1, 2, 3}))
+                .hasSameHashCodeAs(new LlmAttachment("application/pdf", new byte[] {1, 2, 3}));
+        assertThat(a.toString()).contains("application/pdf").contains("3").doesNotContain("[B");
+        assertThatThrownBy(() -> new LlmAttachment(" ", bytes)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LlmAttachment("x/y", null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test

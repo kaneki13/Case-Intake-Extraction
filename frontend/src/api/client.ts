@@ -11,6 +11,10 @@ export class ApiError extends Error {
   }
 }
 
+/** What to tell the reviewer about a failed request: the server's detail, else the error's message. */
+export const errorMessage = (error: unknown): string =>
+  error instanceof ApiError ? error.detail : error instanceof Error ? error.message : String(error)
+
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
 
@@ -19,6 +23,16 @@ function shapeProblem(path: string, body: unknown): string | null {
   const p = (path.split('?')[0] ?? path).replace(/\/+$/, '')
   if (p === '/api/catalog') {
     return isObject(body) && Array.isArray(body.fields) ? null : 'catalog without a "fields" array'
+  }
+  if (p === '/api/duplicates') {
+    const ok = isObject(body) && Number.isInteger(body.integerTolerance) && Array.isArray(body.groups)
+    return ok ? null : 'duplicates without an integer "integerTolerance" and a "groups" array'
+  }
+  if (/^\/api\/documents\/[^/]+\/cases\/[^/]+\/fields$/.test(p)) {
+    return Array.isArray(body) ? null : 'bulk review answer is not an array'
+  }
+  if (/^\/api\/documents\/[^/]+\/cases\/[^/]+\/fields\/[^/]+$/.test(p)) {
+    return isObject(body) && typeof body.fieldId === 'string' ? null : 'merged field without "fieldId"'
   }
   if (p === '/api/documents') {
     return Array.isArray(body) ? null : 'document list is not an array'
@@ -51,15 +65,16 @@ async function toApiError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, res.statusText || `HTTP ${res.status}`, res.statusText || `HTTP ${res.status}`)
 }
 
-export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   // Absolute URL so fetch also works outside a browser (tests); same origin as the page.
   const url = typeof location !== 'undefined' ? new URL(path, location.href).toString() : path
   let res: Response
   try {
     res = await fetch(url, init)
   } catch (cause) {
-    // An aborted request is the caller's decision, not a network failure.
-    if (cause instanceof DOMException && cause.name === 'AbortError') throw cause
+    // An aborted request is the caller's decision, not a network failure. The error may come from another realm
+    // (the test environment's fetch), so it is recognised by name rather than by class.
+    if (init?.signal?.aborted || (isObject(cause) && cause.name === 'AbortError')) throw cause
     const msg = cause instanceof Error ? cause.message : String(cause)
     throw new ApiError(0, 'Network error', `Network error: could not reach the server (${msg})`)
   }
@@ -77,3 +92,20 @@ export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return body as T // structurally checked above (top level only)
 }
+
+/** GET `path`. Pass TanStack's `signal` so a query that is no longer wanted cancels its request. */
+export const getJson = <T>(path: string, init?: RequestInit): Promise<T> => requestJson<T>(path, init)
+
+/** Send a JSON body with `method`; same error semantics as getJson. `signal` cancels the request. */
+export const sendJson = <T>(
+  method: 'PATCH' | 'POST' | 'PUT',
+  path: string,
+  body: unknown,
+  options: { signal?: AbortSignal } = {},
+): Promise<T> =>
+  requestJson<T>(path, {
+    method,
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify(body),
+    signal: options.signal,
+  })

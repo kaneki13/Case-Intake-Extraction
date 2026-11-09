@@ -61,11 +61,40 @@ describe('getJson', () => {
     await expect(getJson('/api/documents')).rejects.toMatchObject({ status: 0 })
     server.use(http.get('/api/documents/X', () => HttpResponse.json({ id: 'X', extraction: {} })))
     await expect(getJson('/api/documents/X')).rejects.toMatchObject({ status: 0 })
+    // GET /api/duplicates is {integerTolerance, groups}: a bare array or a missing tolerance is the wrong shape.
+    server.use(http.get('/api/duplicates', () => HttpResponse.json([])))
+    await expect(getJson('/api/duplicates')).rejects.toMatchObject({ status: 0 })
+    server.use(http.get('/api/duplicates', () => HttpResponse.json({ groups: [] })))
+    await expect(getJson('/api/duplicates')).rejects.toMatchObject({ status: 0 })
+    server.use(http.get('/api/duplicates', () => HttpResponse.json({ integerTolerance: 1.5, groups: [] })))
+    await expect(getJson('/api/duplicates')).rejects.toMatchObject({ status: 0 })
+    server.use(http.get('/api/duplicates', () => HttpResponse.json({ integerTolerance: 1, groups: [] })))
+    await expect(getJson('/api/duplicates')).resolves.toEqual({ integerTolerance: 1, groups: [] })
     server.use(http.get('/api/documents', () => new HttpResponse('not json', { status: 200 })))
     await expect(getJson('/api/documents')).rejects.toMatchObject({
       status: 0,
       detail: expect.stringMatching(/^Unexpected response shape: /),
     })
+  })
+})
+
+describe('cancellation', () => {
+  it('getJsonPassesTheSignalToFetch', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(getJson('/api/catalog', { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('queriesHandTheirSignalToFetch', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch')
+    try {
+      const { result } = renderHook(() => useCatalog(), { wrapper: wrapper() })
+      await waitFor(() => expect(result.current.isSuccess).toBe(true))
+      const init = spy.mock.calls[0]?.[1]
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 

@@ -118,7 +118,7 @@ class CatalogGeneralityTest {
         SourceText text = SourceText.of("t", DOC);
         CaseCandidate target = new CaseCandidate("patient A", new TextSpan(0, 9), Map.of());
         String user = new PromptBuilder().extractionPrompt(catalog, text, target, List.of(),
-                new DocumentHints(DateConvention.UNKNOWN, false), "0123456789abcdef", Optional.empty()).user();
+                new DocumentHints(DateConvention.UNKNOWN, false, false), "0123456789abcdef", Optional.empty()).user();
         int at = user.indexOf("\n- " + ID + " — " + LABEL + " — ");
         assertThat(at).as("field line").isPositive();
         String line = user.substring(at + 1, user.indexOf('\n', at + 1));

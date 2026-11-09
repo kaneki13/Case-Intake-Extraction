@@ -49,7 +49,7 @@ describe('DocumentRail', () => {
     expect(within(link('NC1')).getByText('No case')).toBeInTheDocument()
     expect(within(link('NC1')).getByRole('img', { name: 'No adverse event reported' })).toBeInTheDocument()
     expect(within(link('NC1')).getByRole('img', { name: 'No risky values' })).toBeInTheDocument()
-    expect(within(link('PDF1')).getByRole('img', { name: 'Image-only PDF — not processed' })).toBeInTheDocument()
+    expect(within(link('PDF1')).getByRole('img', { name: 'Not processed — unsupported format' })).toBeInTheDocument()
 
     // Titles are one line; the full title is kept for the tooltip.
     expect(within(link('MP1')).getByTitle('MP1')).toBeInTheDocument()
@@ -59,7 +59,7 @@ describe('DocumentRail', () => {
     // Same names, reversed order: "high" is now the weakest level and must count as risky.
     const catalog: Catalog = { ...catalogFixture, confidence_levels: ['low', 'medium', 'high'] }
     const summary: DocumentSummary = {
-      id: 'R1', title: 'Ranked', caseCount: 1, flags: [],
+      id: 'R1', title: 'Ranked', caseCount: 1, flags: [], progress: { reviewed: 0, total: 16 },
       reviewCounts: { conflict: 1, unknown: 9, byConfidence: { low: 4, medium: 5, high: 2 } },
     }
     server.use(
@@ -224,10 +224,10 @@ describe('states', () => {
     renderApp('/documents/PDF1')
     const main = panes.document()
     expect(await within(main).findByRole('heading', { name: 'No text layer' })).toBeInTheDocument()
-    expect(within(main).getByText('Image-only PDF — not processed')).toBeInTheDocument()
+    expect(within(main).getByText('Not processed — unsupported format')).toBeInTheDocument()
     expect(within(main).queryByRole('article', { name: 'Document text' })).not.toBeInTheDocument()
     const fields = panes.fields()
-    expect(await within(fields).findByText('Image-only PDF — not processed')).toBeInTheDocument()
+    expect(await within(fields).findByText('Not processed — unsupported format')).toBeInTheDocument()
   })
 })
 

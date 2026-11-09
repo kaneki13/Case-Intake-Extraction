@@ -1,5 +1,6 @@
 package com.caseintake.llm.gemini;
 
+import com.caseintake.llm.LlmAttachment;
 import com.caseintake.llm.LlmClient;
 import com.caseintake.llm.LlmCredential;
 import com.caseintake.llm.LlmException;
@@ -14,6 +15,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.net.http.HttpClient;
+import java.util.Base64;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -108,7 +110,13 @@ public class GeminiLlmClient implements LlmClient {
         root.putObject("systemInstruction").putArray("parts").addObject().put("text", r.systemInstruction());
         ObjectNode content = root.putArray("contents").addObject();
         content.put("role", "user");
-        content.putArray("parts").addObject().put("text", r.userContent());
+        var parts = content.putArray("parts");
+        for (LlmAttachment a : r.attachments()) {
+            ObjectNode inline = parts.addObject().putObject("inline_data");
+            inline.put("mime_type", a.mimeType());
+            inline.put("data", Base64.getEncoder().encodeToString(a.data()));
+        }
+        parts.addObject().put("text", r.userContent());
         ObjectNode gen = root.putObject("generationConfig");
         gen.put("temperature", 0);
         gen.put("responseMimeType", "application/json");

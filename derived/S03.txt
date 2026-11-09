@@ -1,0 +1,28 @@
+SUSPECTED ADVERSE REACTION REPORT FORM        Form ADR-7 (handwritten copy)
+
+Reporting centre: Hospital de Santa Luzia, Lisboa, Portugal
+Date of report: 2 July 2026
+
+PATIENT
+  Initials: F.A.C.             Age: 60 years          Sex: Male
+
+SUSPECT MEDICINE
+  Enalapril 10 mg tablets, 1 tablet by mouth once daily
+  Started: 10 June 2026        Stopped: 28 June 2026
+  Indication: Hypertension
+
+OTHER MEDICINES
+  Metformin 850 mg twice daily (oral), since 2020
+
+REACTION
+  28 June 2026: swelling of the lips, tongue and face (angioedema),
+  no urticaria, no breathing difficulty. Admitted for observation
+  for 2 days. Treated with IV hydrocortisone and antihistamine.
+  Enalapril stopped. Swelling resolved by 30 June 2026.
+
+OUTCOME:   Recovered
+SERIOUS:   Yes - hospitalisation
+
+REPORTER
+  Dr Rui Caldeira, Internal Medicine
+  Signature: (signed)

@@ -22,7 +22,7 @@ class ConfidencePolicyTest {
     private static final JsonNodeFactory J = JsonNodeFactory.instance;
     private static final Catalog CATALOG =
             new Catalog("t", List.of(), List.of(), List.of("high", "medium", "low"), Map.of(), null);
-    private static final DocumentHints NO_HINT = new DocumentHints(DateConvention.UNKNOWN, false);
+    private static final DocumentHints NO_HINT = new DocumentHints(DateConvention.UNKNOWN, false, false);
 
     private static FieldDef def(FieldType type) {
         return new FieldDef("f", "F", "s", type, List.of(), ValidationRules.NONE, "");
@@ -48,6 +48,30 @@ class ConfidencePolicyTest {
     }
 
     @Test
+    void transcribedSourceCapsAtSecondLevel() {
+        SourceText t = SourceText.of("t", "aged 54 years");
+        var transcribed = new DocumentHints(DateConvention.UNKNOWN, false, true);
+
+        var high = apply(def(FieldType.INTEGER), J.numberNode(54), false, t, transcribed, "high", "aged 54 years");
+        assertThat(high.level()).isEqualTo("medium");
+        assertThat(high.reasons()).containsExactly("TRANSCRIBED_SOURCE");
+
+        var low = apply(def(FieldType.INTEGER), J.numberNode(54), false, t, transcribed, "low", "aged 54 years");
+        assertThat(low.level()).isEqualTo("low");
+        assertThat(low.reasons()).isEmpty();
+
+        var notTranscribed = apply(def(FieldType.INTEGER), J.numberNode(54), false, t, NO_HINT, "high",
+                "aged 54 years");
+        assertThat(notTranscribed.level()).isEqualTo("high");
+
+        Catalog single = new Catalog("t", List.of(), List.of(), List.of("only"), Map.of(), null);
+        var one = ConfidencePolicy.apply(def(FieldType.INTEGER), J.numberNode(54), false,
+                spans(t, "aged 54 years"), t, transcribed, "only", single);
+        assertThat(one.level()).isEqualTo("only");
+        assertThat(one.reasons()).isEmpty();
+    }
+
+    @Test
     void derivedDoesNotRaiseLow() {
         SourceText t = SourceText.of("t", "aged 54 years");
         var c = apply(def(FieldType.INTEGER), J.numberNode(54), true, t, NO_HINT, "low", "aged 54 years");
@@ -66,7 +90,7 @@ class ConfidencePolicyTest {
     @Test
     void ambiguousDateWithLocatedHintCapsAtMedium() {
         SourceText t = SourceText.of("t", "Onset on 03/04/2026 at home.");
-        var hints = new DocumentHints(DateConvention.DAY_FIRST, true);
+        var hints = new DocumentHints(DateConvention.DAY_FIRST, true, false);
         var c = apply(def(FieldType.DATE), J.textNode("2026-04-03"), false, t, hints, "high", "03/04/2026");
         assertThat(c.level()).isEqualTo("medium");
         assertThat(c.reasons()).containsExactly("AMBIGUOUS_NUMERIC_DATE");
@@ -75,7 +99,7 @@ class ConfidencePolicyTest {
     @Test
     void ambiguousDateWithUnlocatedHintStillCapsAtLow() {
         SourceText t = SourceText.of("t", "Onset on 03/04/2026 at home.");
-        var hints = new DocumentHints(DateConvention.DAY_FIRST, false);
+        var hints = new DocumentHints(DateConvention.DAY_FIRST, false, false);
         var c = apply(def(FieldType.DATE), J.textNode("2026-04-03"), false, t, hints, "high", "03/04/2026");
         assertThat(c.level()).isEqualTo("low");
     }
@@ -241,7 +265,7 @@ class ConfidencePolicyTest {
     @Test
     void minimumOfCapsWins() {
         SourceText t = SourceText.of("t", "Onset on 03/04/2026 at home.");
-        var hints = new DocumentHints(DateConvention.DAY_FIRST, true);
+        var hints = new DocumentHints(DateConvention.DAY_FIRST, true, false);
         // DERIVED caps at medium, ambiguous date with hint caps at medium, LITERAL_ABSENT (day 9) lowers high to medium;
         // without the hint the ambiguous date caps at low, which wins.
         var withHint = apply(def(FieldType.DATE), J.textNode("2026-04-09"), true, t, hints, "high", "03/04/2026");

@@ -1,26 +1,29 @@
-import type { CaseOutput, Catalog, CatalogField, FieldResult } from '../api/types'
-import type { DraftValue } from './drafts'
+import type { CaseOutput, Catalog, CatalogField, FieldResult, Review } from '../api/types'
 import { formatValue, listItems } from './format'
 import { NONE_STATED } from './placeholders'
 import { isRisky } from './risk'
-import { editedState, resultProblems, stateOf, type FieldState } from './status'
+import { resultProblems, reviewKindOf, stateOf, type FieldState, type ReviewKind } from './status'
 
 /** What a row shows in its value column. */
 export type RowValue =
   /** `items` is set for list types (coded_multi labels, string_list items): the row shows them as chips. */
   | { kind: 'value'; text: string; title: string; items?: string[] }
-  /** `empty`: a draft the reviewer cleared. */
-  | { kind: 'unknown' | 'conflict' | 'missing' | 'empty'; text: string }
+  | { kind: 'unknown' | 'conflict' | 'missing'; text: string }
 
 export interface FieldRowModel {
   field: CatalogField
   /** The model's result; undefined when the catalog field is absent from this output. */
   result: FieldResult | undefined
+  /** The model's state (confidence or status); filters and the risk marker follow it. */
   state: FieldState
   risky: boolean
+  /** The model's value. */
   value: RowValue
-  /** Set when a local draft overrides the row: the model's own state and value, kept visible beside the draft. */
-  model?: { state: FieldState; value: RowValue }
+  /** The stored review, or null while the field is unreviewed. */
+  review: Review | null
+  reviewKind: ReviewKind
+  /** The reviewer's value, set when the review is an edit; the model value is kept beside it. */
+  edited?: RowValue
 }
 
 export interface SectionModel {
@@ -40,7 +43,6 @@ export interface CaseRows {
 
 export const NOT_STATED = 'Not stated'
 export const NOT_IN_OUTPUT = 'Not in this output'
-export const NO_VALUE = 'No value'
 const OTHER_SECTION = 'Other fields'
 
 function valueOf(field: CatalogField, result: FieldResult | undefined): RowValue {
@@ -50,7 +52,7 @@ function valueOf(field: CatalogField, result: FieldResult | undefined): RowValue
   return displayOf(field, result.value)
 }
 
-/** The display of a value of the field's type (a model value or a draft). */
+/** The display of a value of the field's type (a model value or a reviewer's edit). */
 function displayOf(field: CatalogField, value: unknown): RowValue {
   const items = listItems(field, value)
   if (items !== null) {
@@ -63,10 +65,15 @@ function displayOf(field: CatalogField, value: unknown): RowValue {
   return { kind: 'value', text, title }
 }
 
-/** The row with a local draft in place of the model value: edited state, draft value, model kept beside it. */
-export function withDraft(row: FieldRowModel, draft: DraftValue): FieldRowModel {
-  const value: RowValue = draft === null ? { kind: 'empty', text: NO_VALUE } : displayOf(row.field, draft)
-  return { ...row, state: editedState(), value, model: { state: row.state, value: row.value } }
+/**
+ * The row with its stored review (or none): an edit adds the reviewer's value, the model value stays.
+ * An edit always has a value: the server rejects an edit without one (400), so there is no "cleared" display.
+ */
+export function withReview(row: FieldRowModel, review: Review | undefined): FieldRowModel {
+  if (!review) return row.review === null ? row : { ...row, review: null, reviewKind: 'unreviewed', edited: undefined }
+  const reviewKind = reviewKindOf(review)
+  if (reviewKind !== 'edited') return { ...row, review, reviewKind, edited: undefined }
+  return { ...row, review, reviewKind, edited: displayOf(row.field, review.value) }
 }
 
 /**
@@ -85,6 +92,8 @@ export function buildCaseRows(catalog: Catalog, kase: CaseOutput): CaseRows {
       state: stateOf(result, levels),
       risky: result !== undefined && isRisky(result, levels),
       value: valueOf(field, result),
+      review: null,
+      reviewKind: 'unreviewed',
     }
   }
 

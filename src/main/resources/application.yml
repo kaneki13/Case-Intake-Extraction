@@ -3,9 +3,11 @@ spring:
     import: optional:file:.env[.properties]   # git-ignored; holds GEMINI_API_KEY
 app:
   catalog: catalog/field_catalog.json
-  documents: [documents]          # stretch phase: [documents, documents/stretch]
+  documents: [documents, documents/stretch]
   fixtures: fixtures
   out: out
+  derived: derived                # transcripts of image-only PDFs (written by extract, rebuilt by replay)
+  reviews: reviews                # reviewer decisions, reviews/<ID>.json; git-ignored, never touches out/
 llm:
   provider: gemini                # selects the LlmClient bean
   models:
@@ -13,6 +15,7 @@ llm:
     # (3.8 Flash: high demand, free daily quota spent on 503 retries; 3.7 Flash bills to the same 3.8 quota)
     case-finding: ${LLM_MODEL_CASES:gemini-3.5-flash-lite}
     extraction: ${LLM_MODEL_EXTRACT:gemini-3.6-flash}
+    transcription: ${LLM_MODEL_TRANSCRIBE:gemini-3.6-flash}   # vision model for image-only PDFs
   rate-limit:
     requests-per-minute: 8
   retry:
@@ -23,3 +26,10 @@ llm:
     base-url: https://generativelanguage.googleapis.com
     api-key: ${GEMINI_API_KEY:}   # empty is allowed for replay/server, rejected by extract
     timeout: 300s                 # thinking models can take over two minutes under load
+duplicates:                       # post-processing over all outputs; section ids are catalog sections
+  identity-section: patient       # any differing field here rules a pair out (same drug and event, other patient)
+  required-sections: [patient, drug, event]   # each needs at least one agreeing field
+  min-agreements: 5
+  high-agreements: 8
+  integer-tolerance: 1            # integers count as equal when they differ by at most this
+  max-differences: 4              # a pair with more differing fields (any section) is not a duplicate

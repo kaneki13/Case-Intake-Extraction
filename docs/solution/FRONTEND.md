@@ -3,6 +3,8 @@
 Status: agreed in the frontend grilling round (2026-11-07). Answers Q1–Q11 were all taken as recommended.
 Companion docs: [HLD.md](HLD.md), [LLD.md](LLD.md) §12 (REST API), [PLAN.md](PLAN.md) (backend).
 
+**Stretch UI.** This document describes the core review screen. The stretch work changed parts of it, and STRETCH.md Q5–Q19 ([STRETCH.md](STRETCH.md) §1) and §3 are the current design for those parts: server-side review actions (Accept / Reject / Reset, Accept all / Reject all, filtered to the shown fields when a filter is active) replace this document's Q5 (local drafts) and Task F7; "Manual edit", accepted and rejected badges; progress bars and rings; the rewritten keyboard model (↑/↓ only in the fields pane, Enter or typing to edit, Alt shortcuts, no `j`/`k`) replaces this document's Q9 and §4.6; and the duplicates screen (`/duplicates`). [frontend/README.md](../../frontend/README.md) has the current keyboard table.
+
 ## 1. Decisions
 
 | # | Decision |

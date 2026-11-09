@@ -55,3 +55,12 @@
   background: transparent;
   font-weight: 500;
 }
+
+/* The model's state beside a review: still icon + colour + text, quieter. */
+.badge[data-size='small'] {
+  height: 18px;
+  padding: 0 5px 0 3px;
+  gap: 2px;
+  font-weight: 500;
+  opacity: 0.85;
+}

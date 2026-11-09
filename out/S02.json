@@ -1,0 +1,200 @@
+{
+  "document_id" : "S02",
+  "catalog_version" : "1.0",
+  "model" : "gemini/gemini-3.6-flash",
+  "flags" : [ ],
+  "cases" : [ {
+    "case_index" : 0,
+    "label" : "E.W.",
+    "fields" : {
+      "patient_initials" : {
+        "status" : "extracted",
+        "value" : "EW",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "initials E.W.",
+          "start" : 310,
+          "end" : 323
+        } ]
+      },
+      "patient_age_years" : {
+        "status" : "extracted",
+        "value" : 81,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "81-year-old female patient",
+          "start" : 282,
+          "end" : 308
+        } ]
+      },
+      "patient_sex" : {
+        "status" : "extracted",
+        "value" : "female",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "81-year-old female patient",
+          "start" : 282,
+          "end" : 308
+        } ]
+      },
+      "suspect_drug_name" : {
+        "status" : "extracted",
+        "value" : "digoxin",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "report a case of digoxin toxicity",
+          "start" : 242,
+          "end" : 275
+        }, {
+          "quote" : "treated with digoxin",
+          "start" : 442,
+          "end" : 462
+        } ]
+      },
+      "suspect_drug_dose_value" : {
+        "status" : "extracted",
+        "value" : 0.25,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "digoxin 0.25 mg orally",
+          "start" : 455,
+          "end" : 477
+        } ]
+      },
+      "suspect_drug_dose_unit" : {
+        "status" : "extracted",
+        "value" : "mg",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "digoxin 0.25 mg orally",
+          "start" : 455,
+          "end" : 477
+        } ]
+      },
+      "suspect_drug_route" : {
+        "status" : "extracted",
+        "value" : "oral",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "digoxin 0.25 mg orally",
+          "start" : 455,
+          "end" : 477
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_start_date" : {
+        "status" : "extracted",
+        "value" : "2026-01-05",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "since 5 January 2026",
+          "start" : 489,
+          "end" : 509
+        } ]
+      },
+      "event_terms" : {
+        "status" : "extracted",
+        "value" : [ "digoxin toxicity", "symptomatic bradycardia", "nausea", "dizziness", "general weakness", "second-degree atrioventricular block" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "report a case of digoxin toxicity",
+          "start" : 242,
+          "end" : 275
+        }, {
+          "quote" : "symptomatic bradycardia",
+          "start" : 395,
+          "end" : 418
+        }, {
+          "quote" : "nausea, dizziness and general weakness",
+          "start" : 641,
+          "end" : 679
+        }, {
+          "quote" : "second-degree atrioventricular block",
+          "start" : 738,
+          "end" : 774
+        } ],
+        "note" : "Confidence lowered: LIST_FROM_MULTIPLE_QUOTES."
+      },
+      "event_onset_date" : {
+        "status" : "extracted",
+        "value" : "2026-02-13",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "From approximately 13 February 2026 she had experienced nausea, dizziness and general weakness.",
+          "start" : 585,
+          "end" : 680
+        } ]
+      },
+      "event_outcome" : {
+        "status" : "extracted",
+        "value" : "recovered",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "fully recovered",
+          "start" : 1154,
+          "end" : 1169
+        } ]
+      },
+      "seriousness_criteria" : {
+        "status" : "extracted",
+        "value" : [ "hospitalization" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "admitted to our emergency department on 16 February 2026",
+          "start" : 333,
+          "end" : 389
+        }, {
+          "quote" : "monitored on the cardiac ward for 48 hours",
+          "start" : 985,
+          "end" : 1027
+        }, {
+          "quote" : "discharged on 19 February 2026",
+          "start" : 1104,
+          "end" : 1134
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "reporter_type" : {
+        "status" : "extracted",
+        "value" : "physician",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Senior Consultant Cardiologist",
+          "start" : 1350,
+          "end" : 1380
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "report_date" : {
+        "status" : "extracted",
+        "value" : "2026-02-24",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "24 February 2026",
+          "start" : 101,
+          "end" : 117
+        } ]
+      },
+      "country" : {
+        "status" : "extracted",
+        "value" : "DE",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Freiburg im Breisgau, Germany",
+          "start" : 70,
+          "end" : 99
+        } ]
+      },
+      "concomitant_drugs" : {
+        "status" : "extracted",
+        "value" : [ "bisoprolol", "apixaban" ],
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "in addition to bisoprolol and apixaban",
+          "start" : 545,
+          "end" : 583
+        } ]
+      }
+    }
+  } ]
+}

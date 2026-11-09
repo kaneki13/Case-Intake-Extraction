@@ -51,7 +51,7 @@ class CatalogChangeReplayTest {
         Path catalog = CatalogFixtures.mutated(tmp, addStringField());
         Path replayed = tmp.resolve("out");
 
-        ReplayGoldenTest.replay(catalog, replayed);
+        ReplayGoldenTest.replay(catalog, replayed, tmp.resolve("derived"));
 
         int cases = 0;
         for (String name : ReplayGoldenTest.jsonFiles(ReplayGoldenTest.COMMITTED_OUT)) {
@@ -88,7 +88,7 @@ class CatalogChangeReplayTest {
         assertThat(patterned[0]).as("a catalog field with a pattern").isNotNull();
         Path replayed = tmp.resolve("out");
 
-        ReplayGoldenTest.replay(catalog, replayed);
+        ReplayGoldenTest.replay(catalog, replayed, tmp.resolve("derived"));
 
         int turned = 0;
         for (String name : ReplayGoldenTest.jsonFiles(ReplayGoldenTest.COMMITTED_OUT)) {
@@ -151,6 +151,7 @@ class CatalogChangeReplayTest {
                 .redirectOutput(log.toFile());
         Map<String, String> env = pb.environment();
         env.put("REPLAY_OUT", replayed.toString());
+        env.put("REPLAY_DERIVED", tmp.resolve("script-derived").toString());
         String javaHome = System.getenv("JAVA_HOME");
         env.put("JAVA_HOME", javaHome != null ? javaHome : System.getProperty("java.home"));
         Process process = pb.start();

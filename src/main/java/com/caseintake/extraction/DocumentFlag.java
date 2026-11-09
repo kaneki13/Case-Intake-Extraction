@@ -9,7 +9,8 @@ public enum DocumentFlag {
     UNSUPPORTED_FORMAT,
     MISSING_MINIMUM_ELEMENTS,
     EMBEDDED_INSTRUCTIONS_IGNORED,
-    POSSIBLE_DUPLICATE;
+    POSSIBLE_DUPLICATE,
+    TRANSCRIBED_FROM_IMAGE;
 
     /** The lower snake_case name used in the output JSON. */
     public String json() {

@@ -3,6 +3,8 @@ package com.caseintake.pipeline;
 import com.caseintake.catalog.Catalog;
 import com.caseintake.catalog.CatalogLoader;
 import com.caseintake.config.AppProperties;
+import com.caseintake.duplicates.DuplicateProperties;
+import com.caseintake.duplicates.DuplicatesWriter;
 import com.caseintake.fixtures.Exchange;
 import com.caseintake.fixtures.ExchangeKey;
 import com.caseintake.fixtures.ExchangeSource;
@@ -16,6 +18,7 @@ import com.caseintake.prompt.PromptBuilder;
 import java.io.PrintStream;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -29,8 +32,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Extract mode: calls the model through {@link RecordingExchangeSource}, recording every exchange under the
- * fixtures dir, and writes the outputs. Existing fixtures are reused unless {@code --force}; {@code --stage}
- * re-records only that stage.
+ * fixtures dir, and writes the outputs and transcripts. Existing fixtures are reused unless {@code --force};
+ * {@code --stage} re-records only that stage, except that a re-recorded transcript also re-records the later stages
+ * of its document, since they read the transcript.
  */
 @Component
 public class ExtractCommand {
@@ -40,19 +44,22 @@ public class ExtractCommand {
 
     private final AppProperties app;
     private final LlmProperties llm;
+    private final DuplicateProperties duplicates;
     private final Supplier<Optional<LlmClient>> client;
     private final Clock clock;
     private final PrintStream err;
 
     @Autowired
-    public ExtractCommand(AppProperties app, LlmProperties llm, ObjectProvider<LlmClient> clients, Clock clock) {
-        this(app, llm, () -> Optional.ofNullable(clients.getIfAvailable()), clock, System.err);
+    public ExtractCommand(AppProperties app, LlmProperties llm, DuplicateProperties duplicates,
+                          ObjectProvider<LlmClient> clients, Clock clock) {
+        this(app, llm, duplicates, () -> Optional.ofNullable(clients.getIfAvailable()), clock, System.err);
     }
 
-    ExtractCommand(AppProperties app, LlmProperties llm, Supplier<Optional<LlmClient>> client, Clock clock,
-                   PrintStream err) {
+    ExtractCommand(AppProperties app, LlmProperties llm, DuplicateProperties duplicates,
+                   Supplier<Optional<LlmClient>> client, Clock clock, PrintStream err) {
         this.app = app;
         this.llm = llm;
+        this.duplicates = duplicates;
         this.client = client;
         this.clock = clock;
         this.err = err;
@@ -92,17 +99,22 @@ public class ExtractCommand {
         LlmProperties.Models models = llm.models();
         String caseFindingModel = models == null ? null : models.caseFinding();
         String extractionModel = models == null ? null : models.extraction();
+        String transcriptionModel = models == null ? null : models.transcription();
         if (caseFindingModel == null || caseFindingModel.isBlank()) {
             return configError("llm.models.case-finding is not set; extract needs a model id for case finding.");
         }
         if (extractionModel == null || extractionModel.isBlank()) {
             return configError("llm.models.extraction is not set; extract needs a model id for extraction.");
         }
+        if (transcriptionModel == null || transcriptionModel.isBlank()) {
+            return configError("llm.models.transcription is not set; extract needs a model id for transcription.");
+        }
         Catalog catalog;
         List<SourceDocument> docs;
         try {
             catalog = CatalogLoader.load(app.catalog());
             docs = DocumentSource.list(app.documents());
+            duplicates.validate(catalog);
         } catch (RuntimeException e) {
             return configError(e.getMessage());
         }
@@ -112,9 +124,17 @@ public class ExtractCommand {
         ExchangeSource rerecord = new RecordingExchangeSource(llmClient.get(), store, catalog.version(), true, clock);
         ExchangeSource source = new StageRouting(forced, rerecord, reuse);
         DocumentPipeline pipeline = new DocumentPipeline(new PromptBuilder(), caseFindingModel, extractionModel,
-                err::println);
+                transcriptionModel, new TranscriptStore(app.derived()), err::println);
         RunReport report = pipeline.run(docs, only, catalog, source, app.out());
         report.print(err, RESUME_COMMAND);
+        try {
+            // after all documents, over every output now in out/ (a partial --only run still reflects the rest)
+            DuplicatesWriter.detectAndWrite(app.out(), catalog, duplicates);
+        } catch (RuntimeException e) {
+            // the settings were validated above, so this is a runtime failure (an unreadable output, a write error)
+            err.println("duplicate detection failed: " + e.getMessage());
+            return 1;
+        }
         return report.exitCode();
     }
 
@@ -123,17 +143,39 @@ public class ExtractCommand {
         return 2;
     }
 
-    /** Sends each exchange key to the re-recording or the reusing source. */
-    private record StageRouting(Predicate<ExchangeKey> forced, ExchangeSource rerecord, ExchangeSource reuse)
-            implements ExchangeSource {
+    /**
+     * Sends each exchange key to the re-recording or the reusing source. Once a document's transcript is re-recorded,
+     * every later exchange of that document is re-recorded too: a new transcript invalidates its case finding and
+     * extraction.
+     */
+    private static final class StageRouting implements ExchangeSource {
+        private final Predicate<ExchangeKey> forced;
+        private final ExchangeSource rerecord;
+        private final ExchangeSource reuse;
+        private final Set<String> retranscribed = new HashSet<>();
+
+        StageRouting(Predicate<ExchangeKey> forced, ExchangeSource rerecord, ExchangeSource reuse) {
+            this.forced = forced;
+            this.rerecord = rerecord;
+            this.reuse = reuse;
+        }
+
         @Override
         public Exchange obtain(ExchangeKey key, Supplier<LlmRequest> request) {
-            return (forced.test(key) ? rerecord : reuse).obtain(key, request);
+            boolean force = isForced(key);
+            if (force && Stage.TRANSCRIBE.owns(key.stage())) {
+                retranscribed.add(key.documentId());
+            }
+            return (force ? rerecord : reuse).obtain(key, request);
         }
 
         @Override
         public Exchange retry(ExchangeKey key, Supplier<LlmRequest> request) {
-            return (forced.test(key) ? rerecord : reuse).retry(key, request);
+            return (isForced(key) ? rerecord : reuse).retry(key, request);
+        }
+
+        private boolean isForced(ExchangeKey key) {
+            return forced.test(key) || retranscribed.contains(key.documentId());
         }
     }
 }

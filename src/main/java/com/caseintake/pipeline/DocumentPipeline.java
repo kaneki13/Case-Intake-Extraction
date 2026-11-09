@@ -5,12 +5,14 @@ import com.caseintake.extraction.CaseCandidate;
 import com.caseintake.extraction.CaseFinder;
 import com.caseintake.extraction.CaseFinding;
 import com.caseintake.extraction.DocumentFlag;
+import com.caseintake.extraction.DocumentHints;
 import com.caseintake.extraction.FieldAssembler;
 import com.caseintake.extraction.ResponseShapeException;
 import com.caseintake.fixtures.Exchange;
 import com.caseintake.fixtures.ExchangeKey;
 import com.caseintake.fixtures.ExchangeSource;
 import com.caseintake.llm.DailyQuotaExhaustedException;
+import com.caseintake.llm.LlmAttachment;
 import com.caseintake.llm.LlmRequest;
 import com.caseintake.output.CaseOutput;
 import com.caseintake.output.ExtractionOutput;
@@ -23,46 +25,92 @@ import com.caseintake.prompt.ResponseSchemaFactory;
 import com.caseintake.text.SourceText;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * Runs one document through case finding and per-case extraction (LLD §11). Every model exchange comes from the
- * given {@link ExchangeSource}, so the same code serves extract (recording) and replay (fixtures only). Request
- * suppliers are evaluated only when a live call is made, so replay never needs model ids or a key.
+ * Runs one document through transcription (PDF-only documents), case finding and per-case extraction (LLD §11).
+ * Every model exchange comes from the given {@link ExchangeSource}, so the same code serves extract (recording) and
+ * replay (fixtures only). Request suppliers are evaluated only when a live call is made, so replay never needs model
+ * ids, a key or the PDF bytes.
  */
 public class DocumentPipeline {
     private static final ObjectMapper JSON = new ObjectMapper();
+    private static final String PDF_MIME_TYPE = "application/pdf";
 
     private final PromptBuilder prompts;
     private final String caseFindingModel;
     private final String extractionModel;
+    private final String transcriptionModel;
+    private final TranscriptStore transcripts;
     private final Consumer<String> log;
+    private final Supplier<String> markers;
 
     public DocumentPipeline(PromptBuilder prompts, String caseFindingModel, String extractionModel,
-                            Consumer<String> log) {
+                            String transcriptionModel, TranscriptStore transcripts, Consumer<String> log) {
+        this(prompts, caseFindingModel, extractionModel, transcriptionModel, transcripts, log,
+                DocumentFence::newMarker);
+    }
+
+    /** As the public constructor, with the fence markers taken from {@code markers} (tests fix the marker). */
+    DocumentPipeline(PromptBuilder prompts, String caseFindingModel, String extractionModel,
+                     String transcriptionModel, TranscriptStore transcripts, Consumer<String> log,
+                     Supplier<String> markers) {
         this.prompts = prompts;
         this.caseFindingModel = caseFindingModel;
         this.extractionModel = extractionModel;
+        this.transcriptionModel = transcriptionModel;
+        this.transcripts = transcripts;
         this.log = log;
+        this.markers = markers;
     }
 
+    /**
+     * A document with a {@code .txt} is read as is. Without one, a document with exactly one {@code .pdf} is
+     * transcribed first: the transcript is written to the derived dir and becomes the source text. Anything else,
+     * or a blank transcript, is {@code unsupported_format}, and then any earlier transcript of the document is
+     * deleted.
+     */
     public ExtractionOutput process(SourceDocument doc, Catalog catalog, ExchangeSource source) {
-        if (doc.txt().isEmpty()) {
-            return new ExtractionOutput(doc.id(), catalog.version(), null,
-                    List.of(DocumentFlag.UNSUPPORTED_FORMAT.json()), List.of());
+        SourceText text;
+        boolean transcribed = doc.txt().isEmpty();
+        if (!transcribed) {
+            text = SourceText.read(doc.id(), doc.txt().get());
+        } else {
+            List<Path> pdfs = doc.others().stream().filter(DocumentPipeline::isPdf).toList();
+            if (pdfs.size() != 1) {
+                if (pdfs.size() > 1) {
+                    log.accept(doc.id() + ": " + pdfs.size() + " PDF files and no .txt; transcription needs exactly "
+                            + "one, so the document is unsupported");
+                }
+                transcripts.delete(doc.id()); // a transcript from an earlier run no longer applies
+                return unsupported(doc, catalog);
+            }
+            String transcript = transcribe(doc.id(), pdfs.get(0), source);
+            if (transcript.isBlank()) {
+                log.accept(doc.id() + ": blank transcript; the document is unsupported");
+                transcripts.delete(doc.id()); // a transcript from an earlier run no longer applies
+                return unsupported(doc, catalog);
+            }
+            transcripts.write(doc.id(), transcript);
+            text = SourceText.of(doc.id(), transcript);
         }
-        SourceText text = SourceText.read(doc.id(), doc.txt().get());
-        String marker = DocumentFence.newMarker();
+        String marker = markers.get();
 
         Parsed<CaseFinding> found = withRepair(source, new ExchangeKey(doc.id(), Stage.CASES.fixtureKey()),
                 hint -> request(caseFindingModel, prompts.caseFindingPrompt(text, marker, hint),
@@ -70,6 +118,7 @@ public class DocumentPipeline {
                 output -> CaseFinder.find(text, output));
         CaseFinding finding = found.value();
         finding.notes().forEach(note -> log.accept(doc.id() + ": note: " + note));
+        DocumentHints hints = transcribed ? finding.hints().transcribed() : finding.hints();
 
         String model = qualifiedModel(found.exchange());
         List<CaseCandidate> candidates = finding.cases();
@@ -81,16 +130,67 @@ public class DocumentPipeline {
             Parsed<LinkedHashMap<String, FieldResult>> fields = withRepair(source,
                     new ExchangeKey(doc.id(), Stage.EXTRACT.fixtureKey(i)),
                     hint -> request(extractionModel, prompts.extractionPrompt(catalog, text, target, others,
-                            finding.hints(), marker, hint), ResponseSchemaFactory.extractionSchema(catalog)),
+                            hints, marker, hint), ResponseSchemaFactory.extractionSchema(catalog)),
                     output -> FieldAssembler.assemble(catalog, jsonObject(output).get("fields"), text,
-                            OptionalInt.of(target.anchor().start()), finding.hints()));
+                            OptionalInt.of(target.anchor().start()), hints));
             if (i == 0) {
                 model = qualifiedModel(fields.exchange());
             }
             cases.add(new CaseOutput(i, target.label(), fields.value()));
         }
-        List<String> flags = finding.flags().stream().map(DocumentFlag::json).sorted().toList();
+        EnumSet<DocumentFlag> flagSet = EnumSet.copyOf(finding.flags());
+        if (transcribed) {
+            flagSet.add(DocumentFlag.TRANSCRIBED_FROM_IMAGE);
+        }
+        List<String> flags = flagSet.stream().map(DocumentFlag::json).sorted().toList();
         return new ExtractionOutput(doc.id(), catalog.version(), model, flags, cases);
+    }
+
+    private static ExtractionOutput unsupported(SourceDocument doc, Catalog catalog) {
+        return new ExtractionOutput(doc.id(), catalog.version(), null,
+                List.of(DocumentFlag.UNSUPPORTED_FORMAT.json()), List.of());
+    }
+
+    private static boolean isPdf(Path file) {
+        return file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf");
+    }
+
+    /** The transcript of the PDF, from the {@code transcribe} exchange with the repair retry. */
+    private String transcribe(String id, Path pdf, ExchangeSource source) {
+        Parsed<Transcription> parsed = withRepair(source, new ExchangeKey(id, Stage.TRANSCRIBE.fixtureKey()),
+                hint -> {
+                    Prompt prompt = prompts.transcriptionPrompt(hint);
+                    return new LlmRequest(transcriptionModel, prompt.system(), prompt.user(),
+                            ResponseSchemaFactory.transcriptionSchema(),
+                            List.of(new LlmAttachment(PDF_MIME_TYPE, readBytes(pdf))));
+                },
+                DocumentPipeline::transcription);
+        log.accept(id + ": transcribed " + pdf.getFileName() + " (" + parsed.value().illegibleCount()
+                + " illegible span(s))");
+        return parsed.value().transcript();
+    }
+
+    private record Transcription(String transcript, int illegibleCount) {}
+
+    private static Transcription transcription(String output) {
+        JsonNode root = jsonObject(output);
+        JsonNode transcript = root.get("transcript");
+        if (transcript == null || !transcript.isTextual()) {
+            throw new ResponseShapeException("transcript missing or not a string");
+        }
+        JsonNode count = root.get("illegible_count");
+        if (count == null || !count.canConvertToInt() || !count.isIntegralNumber() || count.intValue() < 0) {
+            throw new ResponseShapeException("illegible_count missing or not a non-negative integer");
+        }
+        return new Transcription(transcript.asText(), count.intValue());
+    }
+
+    private static byte[] readBytes(Path file) {
+        try {
+            return Files.readAllBytes(file);
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot read " + file, e);
+        }
     }
 
     /**
@@ -155,7 +255,7 @@ public class DocumentPipeline {
     }
 
     private static LlmRequest request(String model, Prompt prompt, JsonNode schema) {
-        return new LlmRequest(model, prompt.system(), prompt.user(), schema);
+        return new LlmRequest(model, prompt.system(), prompt.user(), schema, List.of());
     }
 
     private static JsonNode jsonObject(String output) {

@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CatalogField, DocumentDetail, FieldResult, FieldType } from '../src/api/types'
 import { FieldControl } from '../src/components/controls/FieldControl'
 import { D01, MP1, catalogFixture } from './fixtures'
+import { served } from './msw/handlers'
 import { server } from './msw/server'
 import { panes, renderApp } from './renderApp'
 
@@ -25,7 +26,8 @@ function serveD01(mutate: (fields: Record<string, FieldResult>) => void): Docume
   const kase = doc.extraction.cases[0]
   if (!kase) throw new Error('D01 has no case')
   mutate(kase.fields)
-  server.use(http.get('*/api/documents/D01', () => HttpResponse.json(doc)))
+  // Served with the stored reviews, so a saved edit shows on the overridden document too.
+  server.use(http.get('*/api/documents/D01', () => HttpResponse.json(served(doc))))
   return doc
 }
 
@@ -49,7 +51,10 @@ async function openField(field: CatalogField, docId = 'D01', search = '') {
   return { ...app, pane, row, inspector }
 }
 
-const editedBadge = (row: HTMLElement) => within(row).queryByRole('img', { name: 'Edited' })
+const editedBadge = (row: HTMLElement) => within(row).queryByRole('img', { name: 'Manual edit' })
+const saveButton = (inspector: HTMLElement) => within(inspector).getByRole('button', { name: 'Save' })
+/** The reviewer's value in a row (the model value sits struck through beneath it). */
+const editedValue = (row: HTMLElement) => row.querySelector('[data-edited]') as HTMLElement
 const optionLabel = (f: CatalogField, code: string) => f.options?.find((o) => o.code === code)?.label as string
 
 afterEach(() => {
@@ -66,6 +71,9 @@ describe('catalog-driven controls', () => {
 
     await user.clear(input)
     await user.type(input, '2026-03-05')
+    // Nothing reaches the row until it is saved.
+    expect(within(row()).queryByText('5 Mar 2026')).toBeNull()
+    await user.click(saveButton(inspector()))
     await waitFor(() => expect(within(row()).getByText('5 Mar 2026')).toBeInTheDocument())
     expect(editedBadge(row())).not.toBeNull()
   })
@@ -84,9 +92,10 @@ describe('catalog-driven controls', () => {
 
     const other = options.find((o) => o.code !== current) as { code: string; label: string }
     await user.click(within(listbox).getByRole('option', { name: other.label }))
+    await waitFor(() => expect(within(inspector()).getByRole('combobox', { name: field.label })).toHaveTextContent(other.label))
+    await user.click(saveButton(inspector()))
     await waitFor(() => expect(within(row()).getByText(other.label)).toBeInTheDocument())
     expect(editedBadge(row())).not.toBeNull()
-    expect(within(inspector()).getByRole('combobox', { name: field.label })).toHaveTextContent(other.label)
   })
 
   it('codedMultiRendersMultiSelect', async () => {
@@ -119,14 +128,22 @@ describe('catalog-driven controls', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 
     expect(within(inspector()).getByRole('list', { name: `${field.label}: selected` })).toHaveTextContent(added.label)
-    expect(within(row()).getByText(added.label)).toBeInTheDocument()
-    expect(editedBadge(row())).not.toBeNull()
+    // Not saved yet: the row still shows the model's selection.
+    expect(within(row()).queryByText(added.label)).toBeNull()
+    expect(saveButton(inspector())).toBeEnabled()
 
     await user.click(within(inspector()).getByRole('button', { name: `Remove ${added.label}` }))
-    await waitFor(() => expect(within(row()).queryByText(added.label)).toBeNull())
-    // Back to the model's own selection: no longer a draft.
-    expect(editedBadge(row())).toBeNull()
+    // Back to the model's own selection: nothing to save.
+    expect(saveButton(inspector())).toBeDisabled()
     expect(inspector()).toContainElement(document.activeElement as HTMLElement)
+
+    await user.click(within(inspector()).getByRole('button', { name: field.label }))
+    await user.click(within(await screen.findByRole('dialog')).getByRole('checkbox', { name: added.label }))
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await user.click(saveButton(inspector()))
+    await waitFor(() => expect(editedBadge(row())).not.toBeNull())
+    expect(within(editedValue(row())).getByText(added.label)).toBeInTheDocument()
   })
 
   it('integerHonoursCatalogMinMax', async () => {
@@ -144,19 +161,25 @@ describe('catalog-driven controls', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true')
     const message = document.getElementById(input.getAttribute('aria-describedby') ?? '')
     expect(message).toHaveTextContent(`at most ${max}`)
-    // An out-of-range number is never committed: the row does not show it.
+    // An out-of-range number is never saved: Save puts focus back on the input instead.
+    expect(saveButton(inspector())).toBeEnabled()
+    await user.click(saveButton(inspector()))
+    expect(input).toHaveFocus()
     expect(within(row()).queryByText(String(max + 1))).toBeNull()
+    expect(editedBadge(row())).toBeNull()
 
     await user.clear(input)
-    await user.type(input, '1.5')
+    await user.type(input, '1.5{Enter}')
     expect(input).toHaveAttribute('aria-invalid', 'true')
     expect(document.getElementById(input.getAttribute('aria-describedby') ?? '')).toHaveTextContent(/whole number/i)
     expect(within(row()).queryByText('1.5')).toBeNull()
+    expect(editedBadge(row())).toBeNull()
 
     const valid = max - 1 === modelValue(field) ? max - 2 : max - 1
     await user.clear(input)
     await user.type(input, String(valid))
     expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    await user.click(saveButton(inspector()))
     await waitFor(() => expect(editedBadge(row())).not.toBeNull())
     expect(within(row()).getByText(String(valid))).toBeInTheDocument()
   })
@@ -188,16 +211,19 @@ describe('catalog-driven controls', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true')
     const message = document.getElementById(input.getAttribute('aria-describedby') ?? '')
     expect(message).toHaveTextContent(field.validation?.pattern as string)
-    // Text the pattern rejects is never committed: the row does not show it.
+    // Text the pattern rejects is never saved: the row does not show it.
+    await user.click(saveButton(inspector()))
     expect(within(row()).queryByText(bad)).toBeNull()
+    expect(editedBadge(row())).toBeNull()
 
-    // A value the pattern accepts and that differs from the model: valid, and a draft.
+    // A value the pattern accepts and that differs from the model: valid, and saved.
     const good = ['ZZ', 'Q', 'AB', 'ZZZZ'].find((s) => pattern.test(s) && s !== modelValue(field))
     if (!good) throw new Error('no candidate matches the catalog pattern')
     await user.clear(input)
     await user.type(input, good)
     expect(input).not.toHaveAttribute('aria-invalid', 'true')
     expect(input.getAttribute('aria-describedby') ?? '').toBe('')
+    await user.keyboard('{Enter}')
     await waitFor(() => expect(within(row()).getByText(good)).toBeInTheDocument())
     expect(editedBadge(row())).not.toBeNull()
   })
@@ -215,8 +241,8 @@ describe('catalog-driven controls', () => {
     await user.type(input, '  zz-new-item  {Enter}')
     expect(items().map((li) => li.textContent?.replace(/Remove.*$/, ''))).toEqual([...current, 'zz-new-item'])
     expect(input).toHaveValue('')
-    await waitFor(() => expect(within(row()).getByText('zz-new-item')).toBeInTheDocument())
-    expect(editedBadge(row())).not.toBeNull()
+    // Enter in the add box adds an item; it does not save the field.
+    expect(within(row()).queryByText('zz-new-item')).toBeNull()
 
     // A duplicate is refused with a message, and not added.
     await user.type(input, `${first}{Enter}`)
@@ -231,66 +257,68 @@ describe('catalog-driven controls', () => {
 
     await user.click(within(inspector()).getByRole('button', { name: `Remove ${first}` }))
     expect(items().map((li) => li.textContent?.replace(/Remove.*$/, ''))).toEqual([...current.slice(1), 'zz-new-item'])
-    await waitFor(() => expect(within(row()).queryByText(first)).toBeNull())
     expect(inspector()).toContainElement(document.activeElement as HTMLElement)
+
+    await user.click(saveButton(inspector()))
+    await waitFor(() => expect(editedBadge(row())).not.toBeNull())
+    const saved = editedValue(row())
+    expect(within(saved).getByText('zz-new-item')).toBeInTheDocument()
+    expect(within(saved).queryByText(first)).toBeNull()
   })
 })
 
-describe('drafts', () => {
-  it('editMarksRowEditedAndResetRestores', async () => {
+describe('saved edits', () => {
+  it('editIsSavedAndResetRestoresTheModelValue', async () => {
     const field = fieldOfType('string', (f) => f.validation?.pattern === undefined)
     const model = modelValue(field) as string
     const level = d01Fields()[field.id]?.confidence as string
     const { user, pane, row, inspector } = await openField(field)
-    expect(within(inspector()).queryByText('Edits are not saved yet')).toBeNull()
-    expect(within(inspector()).queryByRole('button', { name: 'Reset to model value' })).toBeNull()
-    expect(within(pane).queryByRole('button', { name: /^edited/ })).toBeNull()
+    expect(within(inspector()).queryByText('Manual edit')).toBeNull()
+    expect(within(inspector()).queryByRole('button', { name: 'Reset' })).toBeNull()
+    expect(saveButton(inspector())).toBeDisabled()
 
-    const input = within(inspector()).getByLabelText(field.label)
-    await user.type(input, ' extra')
-    const draft = `${model} extra`
+    await user.type(within(inspector()).getByLabelText(field.label), ' extra')
+    const edit = `${model} extra`
+    await user.click(saveButton(inspector()))
 
-    // The row shows the draft, the edited badge, and still the model's own state.
-    await waitFor(() => expect(within(row()).getByText(draft)).toBeInTheDocument())
+    // The row shows the edit, the manual-edit badge, the model value struck through and the model's own state.
+    await waitFor(() => expect(within(row()).getByText(edit)).toBeInTheDocument())
     expect(editedBadge(row())).not.toBeNull()
-    expect(within(row()).getByText(`model: ${level}`)).toBeInTheDocument()
-    expect(within(pane).getByRole('button', { name: 'edited: 1' })).toBeInTheDocument()
-    expect(within(inspector()).getByText('Edits are not saved yet')).toBeInTheDocument()
-    expect(input).toHaveFocus()
-
-    // The draft survives collapsing and reopening the row (kept in memory).
-    await user.click(row())
+    expect(within(row()).getByRole('img', { name: `Confidence: ${level}` })).toBeInTheDocument()
+    expect(row().querySelector('s')).toHaveTextContent(model)
+    expect(within(pane).getByRole('button', { name: 'Edited: 1' })).toBeInTheDocument()
+    // Saving moved on to the next field.
     await waitFor(() => expect(row()).toHaveAttribute('aria-expanded', 'false'))
-    expect(within(row()).getByText(draft)).toBeInTheDocument()
+
+    // Reopened, the inspector holds the saved edit and says so.
     await user.click(row())
     await waitFor(() => expect(row()).toHaveAttribute('aria-expanded', 'true'))
-    expect(within(inspector()).getByLabelText(field.label)).toHaveValue(draft)
+    expect(within(inspector()).getByLabelText(field.label)).toHaveValue(edit)
+    expect(within(inspector()).getByText('Manual edit')).toBeInTheDocument()
 
-    await user.click(within(inspector()).getByRole('button', { name: 'Reset to model value' }))
+    await user.click(within(inspector()).getByRole('button', { name: 'Reset' }))
     await waitFor(() => expect(within(row()).getByText(model)).toBeInTheDocument())
     expect(editedBadge(row())).toBeNull()
-    expect(within(row()).queryByText(`model: ${level}`)).toBeNull()
-    expect(within(pane).queryByRole('button', { name: /^edited/ })).toBeNull()
+    expect(within(pane).getByRole('button', { name: 'Edited: 0' })).toBeInTheDocument()
     expect(within(inspector()).getByLabelText(field.label)).toHaveValue(model)
-    expect(within(inspector()).queryByText('Edits are not saved yet')).toBeNull()
-    expect(inspector()).toContainElement(document.activeElement as HTMLElement)
+    expect(within(inspector()).queryByText('Manual edit')).toBeNull()
   })
 
-  it('draftsAreKeptPerCase', async () => {
+  it('editsAreKeptPerCase', async () => {
     const field = fieldOfType('string', (f) => f.validation?.pattern === undefined)
     const { user, pane, row, inspector } = await openField(field, 'MP1')
     expect(MP1.extraction.cases).toHaveLength(2)
-    await user.type(within(inspector()).getByLabelText(field.label), ' case-one')
+    await user.type(within(inspector()).getByLabelText(field.label), ' case-one{Enter}')
     await waitFor(() => expect(editedBadge(row())).not.toBeNull())
 
     await user.click(within(pane).getAllByRole('tab')[1] as HTMLElement)
     await waitFor(() => expect(within(pane).getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true'))
     expect(editedBadge(row())).toBeNull()
-    expect(within(pane).queryByRole('button', { name: /^edited/ })).toBeNull()
+    expect(within(pane).getByRole('button', { name: 'Edited: 0' })).toBeInTheDocument()
 
     await user.click(within(pane).getAllByRole('tab')[0] as HTMLElement)
     await waitFor(() => expect(editedBadge(row())).not.toBeNull())
-    expect(within(pane).getByRole('button', { name: 'edited: 1' })).toBeInTheDocument()
+    expect(within(pane).getByRole('button', { name: 'Edited: 1' })).toBeInTheDocument()
   })
 
   it('conflictInspectorListsCandidates', async () => {
@@ -302,13 +330,13 @@ describe('drafts', () => {
     const items = within(within(inspector()).getByRole('list', { name: /candidates/i })).getAllByRole('listitem')
     expect(items.map((li) => li.textContent)).toEqual(['2026-03-12', '2026-03-14'])
 
-    // The control starts empty: the model gave no value. Filling it is a draft.
+    // The control starts empty: the model gave no value. Filling it and saving is a manual edit.
     const input = within(inspector()).getByLabelText(field.label)
     expect(input).toHaveValue('')
-    await user.type(input, '2026-03-12')
+    await user.type(input, '2026-03-12{Enter}')
     await waitFor(() => expect(within(row()).getByText('12 Mar 2026')).toBeInTheDocument())
     expect(editedBadge(row())).not.toBeNull()
-    expect(within(row()).getByText('model: conflict')).toBeInTheDocument()
+    expect(within(row()).getByRole('img', { name: 'Status: conflict' })).toBeInTheDocument()
   })
 })
 
@@ -381,7 +409,9 @@ describe('controls by keyboard alone', () => {
     await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
     expect(within(inspector()).getByRole('combobox', { name: field.label })).toHaveTextContent(target?.label as string)
     await waitFor(() => expect(within(inspector()).getByRole('combobox', { name: field.label })).toHaveFocus())
-    expect(editedBadge(row())).not.toBeNull()
+    // Chosen, not yet saved.
+    expect(saveButton(inspector())).toBeEnabled()
+    expect(editedBadge(row())).toBeNull()
     expect(searchField(router)).toBe(field.id)
   })
 
@@ -403,7 +433,7 @@ describe('controls by keyboard alone', () => {
     await user.keyboard(' ')
     if (wasChecked) expect(box).not.toBeChecked()
     else expect(box).toBeChecked()
-    await waitFor(() => expect(editedBadge(row())).not.toBeNull())
+    await waitFor(() => expect(saveButton(inspector())).toBeEnabled())
 
     // Esc closes the list and returns focus to the trigger; the field stays selected.
     await user.keyboard('{Escape}')
@@ -411,13 +441,14 @@ describe('controls by keyboard alone', () => {
     expect(trigger).toHaveFocus()
     expect(searchField(router)).toBe(field.id)
 
-    // Space opens it too; toggling the same option back undoes the draft.
+    // Space opens it too; toggling the same option back leaves nothing to save.
     await user.keyboard(' ')
     const again = await screen.findByRole('dialog')
     const same = within(again).getByRole('checkbox', { name: first.label })
     await waitFor(() => expect(same).toHaveFocus())
     await user.keyboard(' ')
-    await waitFor(() => expect(editedBadge(row())).toBeNull())
+    await waitFor(() => expect(saveButton(inspector())).toBeDisabled())
+    expect(editedBadge(row())).toBeNull()
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(trigger).toHaveFocus()

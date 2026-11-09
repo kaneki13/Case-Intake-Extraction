@@ -18,7 +18,8 @@ import java.util.regex.Pattern;
  * Deterministic confidence caps (LLD §9.3). Confidence can only go down: the final level is the minimum of the
  * starting level and every rule's cap. A rule is reported only when its own cap is below the starting level.
  * LITERAL_ABSENT also covers a list item not written in any quote; LIST_FROM_MULTIPLE_QUOTES and OPTION_NOT_LITERAL
- * cover lists assembled from several places and option mappings.
+ * cover lists assembled from several places and option mappings. TRANSCRIBED_SOURCE caps every value read from a model
+ * transcript of an image-only document at the second level.
  */
 public final class ConfidencePolicy {
     public static final String DERIVED = "DERIVED";
@@ -26,6 +27,7 @@ public final class ConfidencePolicy {
     public static final String LITERAL_ABSENT = "LITERAL_ABSENT";
     public static final String LIST_FROM_MULTIPLE_QUOTES = "LIST_FROM_MULTIPLE_QUOTES";
     public static final String OPTION_NOT_LITERAL = "OPTION_NOT_LITERAL";
+    public static final String TRANSCRIBED_SOURCE = "TRANSCRIBED_SOURCE";
 
     private static final Pattern NUMERIC_DATE = Pattern.compile("\\b(\\d{1,2})[./-](\\d{1,2})[./-](\\d{2,4})\\b");
 
@@ -61,6 +63,9 @@ public final class ConfidencePolicy {
                 && !anyOptionWritten(def, value, spanTexts)) {
             level = cap(catalog, startLevel, level, catalog.lowerConfidence(startLevel, 1), OPTION_NOT_LITERAL,
                     reasons);
+        }
+        if (hints.sourceTranscribed()) {
+            level = cap(catalog, startLevel, level, medium, TRANSCRIBED_SOURCE, reasons);
         }
         return new Capped(level, List.copyOf(reasons));
     }

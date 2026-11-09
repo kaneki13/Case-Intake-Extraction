@@ -1,0 +1,53 @@
+.bar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--s1);
+}
+
+.buttons {
+  display: inline-flex;
+  gap: var(--s2);
+}
+
+.button {
+  --tone: var(--ok);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 var(--s2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--t13);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.button svg {
+  color: var(--tone);
+}
+
+.button[data-action='reject'] {
+  --tone: var(--risk);
+}
+
+.button:hover:not([aria-disabled='true']) {
+  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 8%, var(--surface));
+}
+
+.button[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.error {
+  color: var(--risk);
+  font-size: var(--t13);
+  font-weight: 500;
+}

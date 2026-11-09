@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Provider-neutral JSON Schemas (draft-07 style) for the two model stages (LLD 7.2, 7.3).
+ * Provider-neutral JSON Schemas (draft-07 style) for the model stages (LLD 7.2, 7.3, 7.4).
  *
  * <p>Nullability convention: a typed value that may be null uses a type array, e.g.
  * {@code "type": ["string", "null"]}; an enum that may be null lists {@code null} as its last
@@ -55,6 +55,15 @@ public final class ResponseSchemaFactory {
         props.set("no_case_reason", nullable("string"));
         props.set("embedded_instructions", arrayOf(type("string")));
         props.set("date_convention", convention);
+        return root;
+    }
+
+    /** Transcription schema for an image-only document. Fixed: it does not depend on the catalog. */
+    public static JsonNode transcriptionSchema() {
+        ObjectNode root = object("transcript", "illegible_count");
+        ObjectNode props = (ObjectNode) root.get("properties");
+        props.set("transcript", type("string"));
+        props.set("illegible_count", type("integer"));
         return root;
     }
 

@@ -2,6 +2,8 @@ import { Navigate, type RouteObject } from 'react-router'
 import { useDocuments } from './api/queries'
 import { AppShell } from './components/AppShell'
 import { DocumentView } from './components/DocumentView'
+import { DuplicateCompare } from './components/DuplicateCompare'
+import { DuplicatesPage } from './components/DuplicatesPage'
 import { FieldsPanel } from './components/FieldsPanel'
 import { Panes } from './components/Panes'
 import { Notice } from './components/states/Notice'
@@ -38,6 +40,8 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <FirstDocument /> },
       { path: 'documents/:id', element: <Panes document={<DocumentView />} fields={<FieldsPanel />} /> },
+      { path: 'duplicates', element: <DuplicatesPage /> },
+      { path: 'duplicates/:index', element: <DuplicateCompare /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

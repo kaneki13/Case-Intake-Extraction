@@ -1,0 +1,181 @@
+{
+  "document_id" : "D02",
+  "catalog_version" : "1.0",
+  "model" : "gemini/gemini-3.6-flash",
+  "flags" : [ ],
+  "cases" : [ {
+    "case_index" : 0,
+    "label" : "Mr J.T.O.",
+    "fields" : {
+      "patient_initials" : {
+        "status" : "extracted",
+        "value" : "JTO",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Patient: Mr J.T.O.",
+          "start" : 44,
+          "end" : 62
+        } ]
+      },
+      "patient_age_years" : {
+        "status" : "extracted",
+        "value" : 67,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Age: 67 years",
+          "start" : 72,
+          "end" : 85
+        } ]
+      },
+      "patient_sex" : {
+        "status" : "extracted",
+        "value" : "male",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Sex: Male",
+          "start" : 95,
+          "end" : 104
+        } ]
+      },
+      "suspect_drug_name" : {
+        "status" : "extracted",
+        "value" : "atorvastatin",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "attributed to atorvastatin.",
+          "start" : 1201,
+          "end" : 1228
+        } ]
+      },
+      "suspect_drug_dose_value" : {
+        "status" : "extracted",
+        "value" : 40,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Atorvastatin 40 mg orally once daily",
+          "start" : 537,
+          "end" : 573
+        } ]
+      },
+      "suspect_drug_dose_unit" : {
+        "status" : "extracted",
+        "value" : "mg",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Atorvastatin 40 mg orally once daily",
+          "start" : 537,
+          "end" : 573
+        } ]
+      },
+      "suspect_drug_route" : {
+        "status" : "extracted",
+        "value" : "oral",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Atorvastatin 40 mg orally once daily",
+          "start" : 537,
+          "end" : 573
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "suspect_drug_start_date" : {
+        "status" : "extracted",
+        "value" : "2025-11-20",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "started by his general practitioner on 20 November 2025",
+          "start" : 587,
+          "end" : 642
+        } ]
+      },
+      "event_terms" : {
+        "status" : "extracted",
+        "value" : [ "acute drug-induced liver injury", "fatigue", "dark urine", "yellowing of the eyes" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Two-week history of fatigue, dark urine and yellowing of the eyes.",
+          "start" : 282,
+          "end" : 348
+        }, {
+          "quote" : "Acute drug-induced liver injury, hepatocellular pattern, attributed to atorvastatin.",
+          "start" : 1144,
+          "end" : 1228
+        } ],
+        "note" : "Confidence lowered: LIST_FROM_MULTIPLE_QUOTES."
+      },
+      "event_onset_date" : {
+        "status" : "extracted",
+        "value" : "2026-01-04",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Onset of symptoms was approximately 4 January 2026.",
+          "start" : 1229,
+          "end" : 1280
+        } ]
+      },
+      "event_outcome" : {
+        "status" : "extracted",
+        "value" : "recovering",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Improving at discharge, not yet fully recovered.",
+          "start" : 1516,
+          "end" : 1564
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "seriousness_criteria" : {
+        "status" : "extracted",
+        "value" : [ "hospitalization" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Admission date: 18 January 2026     Discharge date: 29 January 2026",
+          "start" : 105,
+          "end" : 172
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "reporter_type" : {
+        "status" : "extracted",
+        "value" : "physician",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Dr A. Mensah\nConsultant Hepatologist",
+          "start" : 1710,
+          "end" : 1746
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "report_date" : {
+        "status" : "extracted",
+        "value" : "2026-02-02",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Report prepared: 2 February 2026",
+          "start" : 210,
+          "end" : 242
+        } ]
+      },
+      "country" : {
+        "status" : "extracted",
+        "value" : "IE",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Country: Ireland",
+          "start" : 243,
+          "end" : 259
+        } ]
+      },
+      "concomitant_drugs" : {
+        "status" : "extracted",
+        "value" : [ "metformin", "amlodipine" ],
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "managed with metformin 1000 mg orally twice daily for the last six years, and hypertension managed with amlodipine 5 mg orally once daily.",
+          "start" : 398,
+          "end" : 536
+        } ]
+      }
+    }
+  } ]
+}

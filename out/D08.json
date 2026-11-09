@@ -1,0 +1,210 @@
+{
+  "document_id" : "D08",
+  "catalog_version" : "1.0",
+  "model" : "gemini/gemini-3.6-flash",
+  "flags" : [ ],
+  "cases" : [ {
+    "case_index" : 0,
+    "label" : "H.M.N.",
+    "fields" : {
+      "patient_initials" : {
+        "status" : "extracted",
+        "value" : "HMN",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Initials: H.M.N.",
+          "start" : 717,
+          "end" : 733
+        } ]
+      },
+      "patient_age_years" : {
+        "status" : "extracted",
+        "value" : 72,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Date of birth: 1953 (age 72 years at the time of the events described below)",
+          "start" : 746,
+          "end" : 822
+        } ]
+      },
+      "patient_sex" : {
+        "status" : "extracted",
+        "value" : "female",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Sex: Female",
+          "start" : 734,
+          "end" : 745
+        } ]
+      },
+      "suspect_drug_name" : {
+        "status" : "extracted",
+        "value" : "methotrexate",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Methotrexate 2.5 mg tablets (oral).",
+          "start" : 1832,
+          "end" : 1867
+        } ]
+      },
+      "suspect_drug_dose_value" : {
+        "status" : "extracted",
+        "value" : 20.0,
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "increased the dose of methotrexate to 20 mg orally once weekly",
+          "start" : 2482,
+          "end" : 2544
+        } ]
+      },
+      "suspect_drug_dose_unit" : {
+        "status" : "extracted",
+        "value" : "mg",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "increased the dose of methotrexate to 20 mg orally once weekly",
+          "start" : 2482,
+          "end" : 2544
+        } ]
+      },
+      "suspect_drug_route" : {
+        "status" : "extracted",
+        "value" : "oral",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Methotrexate 2.5 mg tablets (oral).",
+          "start" : 1832,
+          "end" : 1867
+        } ]
+      },
+      "suspect_drug_start_date" : {
+        "status" : "extracted",
+        "value" : "2025-10-07",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Methotrexate was started by the rheumatology service on 7 October 2025",
+          "start" : 1869,
+          "end" : 1939
+        } ]
+      },
+      "event_terms" : {
+        "status" : "extracted",
+        "value" : [ "severe bone marrow suppression", "pancytopenia", "oral mucositis", "neutropenic sepsis", "bilateral pneumonia", "septic shock" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "developed severe bone marrow suppression",
+          "start" : 400,
+          "end" : 440
+        }, {
+          "quote" : "Methotrexate toxicity with pancytopenia, severe oral mucositis and neutropenic sepsis",
+          "start" : 5603,
+          "end" : 5688
+        }, {
+          "quote" : "Bilateral pneumonia with septic shock",
+          "start" : 10245,
+          "end" : 10282
+        } ]
+      },
+      "event_onset_date" : {
+        "status" : "extracted",
+        "value" : "2026-03-19",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "On 24 March 2026 the patient presented to the emergency department with a five-day history of painful mouth ulcers",
+          "start" : 3908,
+          "end" : 4022
+        }, {
+          "quote" : "onset of mucositis on or about 19 March 2026 (five days before presentation)",
+          "start" : 10947,
+          "end" : 11023
+        } ]
+      },
+      "event_outcome" : {
+        "status" : "extracted",
+        "value" : "fatal",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Fatal.",
+          "start" : 10174,
+          "end" : 10180
+        } ]
+      },
+      "seriousness_criteria" : {
+        "status" : "extracted",
+        "value" : [ "death", "life_threatening", "hospitalization" ],
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Death                          Yes",
+          "start" : 10535,
+          "end" : 10569
+        }, {
+          "quote" : "Life-threatening               Yes",
+          "start" : 10572,
+          "end" : 10606
+        }, {
+          "quote" : "Hospitalisation                Yes",
+          "start" : 10609,
+          "end" : 10643
+        } ]
+      },
+      "reporter_type" : {
+        "status" : "extracted",
+        "value" : "physician",
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "Dr Priya Natarajan, Consultant Rheumatologist (reporting clinician)",
+          "start" : 12385,
+          "end" : 12452
+        } ],
+        "note" : "Confidence lowered: OPTION_NOT_LITERAL."
+      },
+      "report_date" : {
+        "status" : "extracted",
+        "value" : "2026-04-14",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Date of this report: 14 April 2026",
+          "start" : 12549,
+          "end" : 12583
+        } ]
+      },
+      "country" : {
+        "status" : "extracted",
+        "value" : "NZ",
+        "confidence" : "high",
+        "provenance" : [ {
+          "quote" : "Wellington, New Zealand",
+          "start" : 82,
+          "end" : 105
+        } ]
+      },
+      "concomitant_drugs" : {
+        "status" : "extracted",
+        "value" : [ "folic acid", "omeprazole", "cilazapril", "paracetamol", "zoledronic acid" ],
+        "confidence" : "medium",
+        "provenance" : [ {
+          "quote" : "folic acid",
+          "start" : 2012,
+          "end" : 2022
+        }, {
+          "quote" : "Omeprazole",
+          "start" : 3207,
+          "end" : 3217
+        }, {
+          "quote" : "Cilazapril",
+          "start" : 3297,
+          "end" : 3307
+        }, {
+          "quote" : "Paracetamol",
+          "start" : 3385,
+          "end" : 3396
+        }, {
+          "quote" : "zoledronic acid",
+          "start" : 1663,
+          "end" : 1678
+        } ],
+        "note" : "Confidence lowered: LIST_FROM_MULTIPLE_QUOTES."
+      }
+    }
+  } ]
+}
